@@ -3,25 +3,56 @@ package com.smartclassroom.erp.controller;
 import com.smartclassroom.erp.entity.User;
 import com.smartclassroom.erp.service.UserService;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import jakarta.validation.Valid;
+
 import java.util.List;
 
 @RestController
-@RequestMapping("/api/users") // This is the base URL for this controller
+@RequestMapping("/api/users")
+@CrossOrigin(origins = "*")
 public class UserController {
 
     @Autowired
     private UserService userService;
 
-    // POST API to add a user. URL: http://localhost:8080/api/users/add
-    @PostMapping("/add")
-    public User addNewUser(@RequestBody User user) {
-        return userService.saveUser(user);
+     // Get all users
+    @GetMapping
+    public ResponseEntity<List<User>> getAllUsers() {
+        return ResponseEntity.ok(userService.getAllUsers());
     }
 
-    // GET API to fetch all users. URL: http://localhost:8080/api/users/all
-    @GetMapping("/all")
-    public List<User> getAllUsers() {
-        return userService.getAllUsers();
+    // Get user by id
+    @GetMapping("/{id}")
+    public ResponseEntity<User> getUserById(@PathVariable Long id) {
+        return userService.getUserById(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    // POST → @Valid added ✅
+    // Create user
+    @PostMapping
+    public ResponseEntity<User> createUser(
+            @Valid @RequestBody User user) {
+        User saved = userService.saveUser(user);
+        return ResponseEntity.status(HttpStatus.CREATED).body(saved);
+    }
+
+    // PUT → @Valid added ✅
+    // Update user
+    @PutMapping("/{id}")
+    public ResponseEntity<User> updateUser(
+            @PathVariable Long id,
+            @Valid @RequestBody User user) {
+        return ResponseEntity.ok(userService.updateUser(id, user));
+    }
+    // Delete user
+    @DeleteMapping("/{id}")
+    public ResponseEntity<String> deleteUser(@PathVariable Long id) {
+        userService.deleteUser(id);
+        return ResponseEntity.ok("User deleted successfully!");
     }
 }

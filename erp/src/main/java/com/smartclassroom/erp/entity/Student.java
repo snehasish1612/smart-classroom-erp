@@ -7,11 +7,11 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 @Entity
-@Table(name = "users")
+@Table(name = "students")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-public class User {
+public class Student {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -26,18 +26,20 @@ public class User {
     @Column(unique = true, nullable = false)
     private String email;
 
-    @NotBlank(message = "Password is required!")
-    @Size(min = 6, message = "Password must be at least 6 characters!")
-    @Column(nullable = false)
-    private String password;
+    @NotBlank(message = "Roll number is required!")
+    @Column(unique = true, nullable = false)
+    private String rollNumber;
 
-    @Enumerated(EnumType.STRING)
+    @NotBlank(message = "Department is required!")
     @Column(nullable = false)
-    private Role role;
+    private String department;
 
-    public enum Role {
-        ADMIN,
-        Faculty,
-        STUDENT
-    }
+    @NotNull(message = "Semester is required!")
+    @Min(value = 1, message = "Semester must be at least 1!")
+    @Max(value = 8, message = "Semester cannot exceed 8!")
+    @Column(nullable = false)
+    private Integer semester;
+
+    @Pattern(regexp = "^[0-9]{10}$", message = "Phone must be 10 digits!")
+    private String phone;
 }
