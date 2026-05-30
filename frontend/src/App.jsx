@@ -22,6 +22,12 @@ const modules = [
   { id: "users", label: "Users" },
 ];
 
+const moduleAccess = {
+  ADMIN: ["dashboard", "students", "faculty", "classrooms", "devices", "timetable", "attendance", "notifications", "users"],
+  Faculty: ["dashboard", "timetable", "attendance", "devices", "notifications"],
+  STUDENT: ["dashboard", "timetable", "attendance", "notifications"],
+};
+
 const configs = {
   students: {
     title: "Students",
@@ -91,9 +97,22 @@ const configs = {
 export default function App() {
   const [session, setSession] = useStoredState(STORAGE_KEY, null);
   const [active, setActive] = useState("dashboard");
+  const visibleModules = useMemo(() => modules.filter((item) => moduleAccess[session?.role]?.includes(item.id)), [session]);
+  const isAdmin = session?.role === "ADMIN";
+  const isFaculty = session?.role === "Faculty";
+
+  useEffect(() => {
+    if (session && visibleModules.length && !visibleModules.some((item) => item.id === active)) {
+      setActive("dashboard");
+    }
+  }, [active, session, visibleModules]);
 
   if (!session) {
     return <Login onLogin={setSession} />;
+  }
+
+  if (!visibleModules.some((item) => item.id === active)) {
+    return null;
   }
 
   return (
@@ -107,7 +126,7 @@ export default function App() {
           </div>
         </div>
         <nav>
-          {modules.map((item) => (
+          {visibleModules.map((item) => (
             <button className={active === item.id ? "active" : ""} key={item.id} onClick={() => setActive(item.id)}>
               {item.label}
             </button>
@@ -118,8 +137,8 @@ export default function App() {
       <main className="main">
         <header className="topbar">
           <div>
-            <h1>{modules.find((item) => item.id === active)?.label}</h1>
-            <p>Operational admin workspace</p>
+            <h1>{visibleModules.find((item) => item.id === active)?.label}</h1>
+            <p>{portalSubtitle(session.role)}</p>
           </div>
           <div className="userbar">
             <span>{session.name}</span>
@@ -128,11 +147,12 @@ export default function App() {
           </div>
         </header>
 
-        {active === "dashboard" && <Dashboard />}
-        {active === "attendance" && <Attendance />}
-        {active === "notifications" && <Notifications session={session} />}
-        {active === "timetable" && <Timetable />}
-        {configs[active] && <CrudPage config={configs[active]} />}
+        {active === "dashboard" && <Dashboard session={session} />}
+        {active === "attendance" && <Attendance session={session} canManage={isAdmin || isFaculty} />}
+        {active === "notifications" && <Notifications session={session} canCreate={isAdmin} />}
+        {active === "timetable" && <Timetable session={session} canManage={isAdmin} />}
+        {active === "devices" && <CrudPage config={configs.devices} readOnly={!isAdmin} allowDeviceControls={isAdmin || isFaculty} />}
+        {configs[active] && active !== "devices" && <CrudPage config={configs[active]} readOnly={!isAdmin} />}
       </main>
     </div>
   );
@@ -212,17 +232,34 @@ function Login({ onLogin }) {
   );
 }
 
-function Dashboard() {
-  const endpoints = useMemo(() => [
-    ["Students", "/api/students"],
-    ["Faculty", "/api/faculty"],
-    ["Classrooms", "/api/classrooms"],
-    ["Devices", "/api/devices"],
-    ["Timetable", "/api/timetable"],
-    ["Attendance", "/api/attendance"],
-    ["Notifications", "/api/notifications"],
-    ["Users", "/api/users"],
-  ], []);
+function Dashboard({ session }) {
+  const endpoints = useMemo(() => {
+    if (session.role === "ADMIN") {
+      return [
+        ["Students", "/api/students"],
+        ["Faculty", "/api/faculty"],
+        ["Classrooms", "/api/classrooms"],
+        ["Devices", "/api/devices"],
+        ["Timetable", "/api/timetable"],
+        ["Attendance", "/api/attendance"],
+        ["Notifications", "/api/notifications"],
+        ["Users", "/api/users"],
+      ];
+    }
+    if (session.role === "Faculty") {
+      return [
+        ["My Classes", "/api/timetable"],
+        ["Attendance", "/api/attendance"],
+        ["Devices", "/api/devices"],
+        ["Notifications", "/api/notifications"],
+      ];
+    }
+    return [
+      ["My Timetable", "/api/timetable"],
+      ["My Attendance", "/api/attendance"],
+      ["Notifications", "/api/notifications"],
+    ];
+  }, [session.role]);
   const [data, setData] = useState({});
   const [state, setState] = useAsyncState();
 
@@ -259,7 +296,7 @@ function Dashboard() {
   );
 }
 
-function CrudPage({ config }) {
+function CrudPage({ config, readOnly = false, allowDeviceControls = false }) {
   const [rows, setRows] = useState([]);
   const [form, setForm] = useState(config.empty);
   const [editing, setEditing] = useState(null);
@@ -321,7 +358,7 @@ function CrudPage({ config }) {
   };
 
   return (
-    <section className="content split">
+    <section className={`content ${readOnly ? "" : "split"}`}>
       <div className="panel">
         <div className="panel-head">
           <h2>{config.title}</h2>
@@ -334,32 +371,38 @@ function CrudPage({ config }) {
           emptyText={`No ${config.title.toLowerCase()} found.`}
           actions={(row) => (
             <>
-              {config.title === "Devices" && (
+              {config.title === "Devices" && allowDeviceControls && (
                 <>
                   <button onClick={() => api.put(`/api/devices/${row.id}/on`).then(load).catch((error) => setState.error(error.message))}>ON</button>
                   <button onClick={() => api.put(`/api/devices/${row.id}/off`).then(load).catch((error) => setState.error(error.message))}>OFF</button>
                 </>
               )}
-              <button onClick={() => { setEditing(row); setForm(projectRow(row, config.empty)); }}>Edit</button>
-              <button className="danger" onClick={() => remove(row)}>Delete</button>
+              {!readOnly && (
+                <>
+                  <button onClick={() => { setEditing(row); setForm(projectRow(row, config.empty)); }}>Edit</button>
+                  <button className="danger" onClick={() => remove(row)}>Delete</button>
+                </>
+              )}
             </>
           )}
         />
       </div>
-      <EntityForm
-        title={editing ? `Edit ${config.title}` : `Create ${config.title}`}
-        fields={fields}
-        form={form}
-        onChange={(name, value) => setForm({ ...form, [name]: value })}
-        onSubmit={submit}
-        onCancel={reset}
-        isEditing={Boolean(editing)}
-      />
+      {!readOnly && (
+        <EntityForm
+          title={editing ? `Edit ${config.title}` : `Create ${config.title}`}
+          fields={fields}
+          form={form}
+          onChange={(name, value) => setForm({ ...form, [name]: value })}
+          onSubmit={submit}
+          onCancel={reset}
+          isEditing={Boolean(editing)}
+        />
+      )}
     </section>
   );
 }
 
-function Timetable() {
+function Timetable({ session, canManage }) {
   const config = {
     empty: { subject: "", facultyId: "", classroomId: "", day: "MONDAY", startTime: "09:00", endTime: "10:00", semester: 1, department: "" },
     fields: [
@@ -376,6 +419,7 @@ function Timetable() {
   const [rows, setRows] = useState([]);
   const [faculty, setFaculty] = useState([]);
   const [classrooms, setClassrooms] = useState([]);
+  const [students, setStudents] = useState([]);
   const [form, setForm] = useState(config.empty);
   const [editing, setEditing] = useState(null);
   const [state, setState] = useAsyncState();
@@ -401,14 +445,31 @@ function Timetable() {
 
   const load = () => {
     setState.loading();
-    api.list("/api/timetable").then((data) => { setRows(data || []); setState.ready(); }).catch((error) => setState.error(error.message));
+    api.list("/api/timetable")
+      .then((data) => {
+        setRows(filterTimetableForRole(data || [], session, faculty, students));
+        setState.ready();
+      })
+      .catch((error) => setState.error(error.message));
   };
 
   useEffect(() => {
-    load();
-    api.list("/api/faculty").then((data) => setFaculty(data || [])).catch(() => setFaculty([]));
-    api.list("/api/classrooms").then((data) => setClassrooms(data || [])).catch(() => setClassrooms([]));
-  }, []);
+    setState.loading();
+    Promise.all([
+      api.list("/api/timetable"),
+      api.list("/api/faculty"),
+      api.list("/api/classrooms"),
+      api.list("/api/students"),
+    ])
+      .then(([timetableData, facultyData, classroomData, studentData]) => {
+        setFaculty(facultyData || []);
+        setClassrooms(classroomData || []);
+        setStudents(studentData || []);
+        setRows(filterTimetableForRole(timetableData || [], session, facultyData || [], studentData || []));
+        setState.ready();
+      })
+      .catch((error) => setState.error(error.message));
+  }, [session]);
 
   const submit = (event) => {
     event.preventDefault();
@@ -428,7 +489,7 @@ function Timetable() {
   };
 
   return (
-    <section className="content split">
+    <section className={`content ${canManage ? "split" : ""}`}>
       <div className="panel">
         <div className="panel-head"><h2>Timetable</h2><button className="ghost" onClick={load}>Refresh</button></div>
         {state.errorMessage && <ErrorBox message={state.errorMessage} />}
@@ -436,40 +497,42 @@ function Timetable() {
           rows={rows}
           columns={["id", "subject", "faculty.name", "classroom.roomNumber", "day", "startTime", "endTime", "department", "semester"]}
           emptyText="No timetable slots found."
-          actions={(row) => (
-            <>
-              <button onClick={() => {
-                setEditing(row);
-                setForm({
-                  subject: row.subject || "",
-                  facultyId: row.faculty?.id || "",
-                  classroomId: row.classroom?.id || "",
-                  day: row.day || "MONDAY",
-                  startTime: row.startTime || "09:00",
-                  endTime: row.endTime || "10:00",
-                  semester: row.semester || 1,
-                  department: row.department || "",
-                });
-              }}>Edit</button>
-              <button className="danger" onClick={() => api.remove(`/api/timetable/${row.id}`).then(load)}>Delete</button>
-            </>
-          )}
+          actions={canManage ? (row) => (
+              <>
+                <button onClick={() => {
+                  setEditing(row);
+                  setForm({
+                    subject: row.subject || "",
+                    facultyId: row.faculty?.id || "",
+                    classroomId: row.classroom?.id || "",
+                    day: row.day || "MONDAY",
+                    startTime: row.startTime || "09:00",
+                    endTime: row.endTime || "10:00",
+                    semester: row.semester || 1,
+                    department: row.department || "",
+                  });
+                }}>Edit</button>
+                <button className="danger" onClick={() => api.remove(`/api/timetable/${row.id}`).then(load).catch((error) => setState.error(error.message))}>Delete</button>
+              </>
+            ) : null}
         />
       </div>
-      <EntityForm
-        title={editing ? "Edit Timetable" : "Create Timetable"}
-        fields={fields}
-        form={form}
-        onChange={(name, value) => setForm({ ...form, [name]: value })}
-        onSubmit={submit}
-        onCancel={() => { setEditing(null); setForm(config.empty); }}
-        isEditing={Boolean(editing)}
-      />
+      {canManage && (
+        <EntityForm
+          title={editing ? "Edit Timetable" : "Create Timetable"}
+          fields={fields}
+          form={form}
+          onChange={(name, value) => setForm({ ...form, [name]: value })}
+          onSubmit={submit}
+          onCancel={() => { setEditing(null); setForm(config.empty); }}
+          isEditing={Boolean(editing)}
+        />
+      )}
     </section>
   );
 }
 
-function Attendance() {
+function Attendance({ session, canManage }) {
   const empty = { studentId: "", facultyId: "", subject: "", date: new Date().toISOString().slice(0, 10), status: "PRESENT" };
   const [rows, setRows] = useState([]);
   const [students, setStudents] = useState([]);
@@ -479,14 +542,25 @@ function Attendance() {
 
   const load = () => {
     setState.loading();
-    api.list("/api/attendance").then((data) => { setRows(data || []); setState.ready(); }).catch((error) => setState.error(error.message));
+    api.list("/api/attendance")
+      .then((data) => {
+        setRows(filterAttendanceForRole(data || [], session, students, faculty));
+        setState.ready();
+      })
+      .catch((error) => setState.error(error.message));
   };
 
   useEffect(() => {
-    load();
-    api.list("/api/students").then((data) => setStudents(data || [])).catch(() => setStudents([]));
-    api.list("/api/faculty").then((data) => setFaculty(data || [])).catch(() => setFaculty([]));
-  }, []);
+    setState.loading();
+    Promise.all([api.list("/api/attendance"), api.list("/api/students"), api.list("/api/faculty")])
+      .then(([attendanceData, studentData, facultyData]) => {
+        setStudents(studentData || []);
+        setFaculty(facultyData || []);
+        setRows(filterAttendanceForRole(attendanceData || [], session, studentData || [], facultyData || []));
+        setState.ready();
+      })
+      .catch((error) => setState.error(error.message));
+  }, [session]);
 
   const submit = (event) => {
     event.preventDefault();
@@ -495,7 +569,7 @@ function Attendance() {
   };
 
   return (
-    <section className="content split">
+    <section className={`content ${canManage ? "split" : ""}`}>
       <div className="panel">
         <div className="panel-head"><h2>Attendance</h2><button className="ghost" onClick={load}>Refresh</button></div>
         {state.errorMessage && <ErrorBox message={state.errorMessage} />}
@@ -503,47 +577,49 @@ function Attendance() {
           rows={rows}
           columns={["id", "student.name", "faculty.name", "subject", "date", "status"]}
           emptyText="No attendance records found."
-          actions={(row) => (
-            <>
-              <button onClick={() => api.put(`/api/attendance/${row.id}?status=PRESENT`).then(load).catch((error) => setState.error(error.message))}>Present</button>
-              <button onClick={() => api.put(`/api/attendance/${row.id}?status=ABSENT`).then(load).catch((error) => setState.error(error.message))}>Absent</button>
-              <button className="danger" onClick={() => api.remove(`/api/attendance/${row.id}`).then(load).catch((error) => setState.error(error.message))}>Delete</button>
-            </>
-          )}
+          actions={canManage ? (row) => (
+              <>
+                <button onClick={() => api.put(`/api/attendance/${row.id}?status=PRESENT`).then(load).catch((error) => setState.error(error.message))}>Present</button>
+                <button onClick={() => api.put(`/api/attendance/${row.id}?status=ABSENT`).then(load).catch((error) => setState.error(error.message))}>Absent</button>
+                <button className="danger" onClick={() => api.remove(`/api/attendance/${row.id}`).then(load).catch((error) => setState.error(error.message))}>Delete</button>
+              </>
+            ) : null}
         />
       </div>
-      <EntityForm
-        title="Mark Attendance"
-        fields={[
-          {
-            name: "studentId",
-            label: "Student",
-            type: "select",
-            required: true,
-            options: students.map((student) => ({ value: student.id, label: `${student.name} - ${student.rollNumber}` })),
-            placeholder: students.length ? "Select student" : "Create a student first",
-          },
-          {
-            name: "facultyId",
-            label: "Faculty",
-            type: "select",
-            required: true,
-            options: faculty.map((item) => ({ value: item.id, label: `${item.name} - ${item.department}` })),
-            placeholder: faculty.length ? "Select faculty" : "Create faculty first",
-          },
-          { name: "subject", label: "Subject", required: true },
-          { name: "date", label: "Date", type: "date", required: true },
-          { name: "status", label: "Status", type: "select", options: attendanceStatuses },
-        ]}
-        form={form}
-        onChange={(name, value) => setForm({ ...form, [name]: value })}
-        onSubmit={submit}
-      />
+      {canManage && (
+        <EntityForm
+          title="Mark Attendance"
+          fields={[
+            {
+              name: "studentId",
+              label: "Student",
+              type: "select",
+              required: true,
+              options: students.map((student) => ({ value: student.id, label: `${student.name} - ${student.rollNumber}` })),
+              placeholder: students.length ? "Select student" : "Create a student first",
+            },
+            {
+              name: "facultyId",
+              label: "Faculty",
+              type: "select",
+              required: true,
+              options: faculty.map((item) => ({ value: item.id, label: `${item.name} - ${item.department}` })),
+              placeholder: faculty.length ? "Select faculty" : "Create faculty first",
+            },
+            { name: "subject", label: "Subject", required: true },
+            { name: "date", label: "Date", type: "date", required: true },
+            { name: "status", label: "Status", type: "select", options: attendanceStatuses },
+          ]}
+          form={form}
+          onChange={(name, value) => setForm({ ...form, [name]: value })}
+          onSubmit={submit}
+        />
+      )}
     </section>
   );
 }
 
-function Notifications({ session }) {
+function Notifications({ session, canCreate }) {
   const empty = { userId: session.id || "", title: "", message: "", role: "ALL" };
   const [rows, setRows] = useState([]);
   const [form, setForm] = useState(empty);
@@ -551,7 +627,8 @@ function Notifications({ session }) {
 
   const load = () => {
     setState.loading();
-    api.list("/api/notifications").then((data) => { setRows(data || []); setState.ready(); }).catch((error) => setState.error(error.message));
+    const rolePath = session.role === "ADMIN" ? "/api/notifications" : `/api/notifications/role/${notificationRole(session.role)}`;
+    api.list(rolePath).then((data) => { setRows(data || []); setState.ready(); }).catch((error) => setState.error(error.message));
   };
 
   useEffect(load, []);
@@ -563,7 +640,7 @@ function Notifications({ session }) {
   };
 
   return (
-    <section className="content split">
+    <section className={`content ${canCreate ? "split" : ""}`}>
       <div className="panel">
         <div className="panel-head"><h2>Notifications</h2><button className="ghost" onClick={load}>Refresh</button></div>
         {state.errorMessage && <ErrorBox message={state.errorMessage} />}
@@ -574,23 +651,25 @@ function Notifications({ session }) {
           actions={(row) => (
             <>
               <button onClick={() => api.put(`/api/notifications/${row.id}/read`).then(load).catch((error) => setState.error(error.message))}>Read</button>
-              <button className="danger" onClick={() => api.remove(`/api/notifications/${row.id}`).then(load).catch((error) => setState.error(error.message))}>Delete</button>
+              {canCreate && <button className="danger" onClick={() => api.remove(`/api/notifications/${row.id}`).then(load).catch((error) => setState.error(error.message))}>Delete</button>}
             </>
           )}
         />
       </div>
-      <EntityForm
-        title="Create Notification"
-        fields={[
-          { name: "userId", label: "Admin User ID", type: "number", required: true },
-          { name: "title", label: "Title", required: true },
-          { name: "message", label: "Message", type: "textarea", required: true },
-          { name: "role", label: "Target", type: "select", options: targetRoles },
-        ]}
-        form={form}
-        onChange={(name, value) => setForm({ ...form, [name]: value })}
-        onSubmit={submit}
-      />
+      {canCreate && (
+        <EntityForm
+          title="Create Notification"
+          fields={[
+            { name: "userId", label: "Admin User ID", type: "number", required: true },
+            { name: "title", label: "Title", required: true },
+            { name: "message", label: "Message", type: "textarea", required: true },
+            { name: "role", label: "Target", type: "select", options: targetRoles },
+          ]}
+          form={form}
+          onChange={(name, value) => setForm({ ...form, [name]: value })}
+          onSubmit={submit}
+        />
+      )}
     </section>
   );
 }
@@ -740,4 +819,42 @@ function coercePayload(form, fields) {
 
 function projectRow(row, empty) {
   return Object.fromEntries(Object.keys(empty).map((key) => [key, row[key] ?? empty[key]]));
+}
+
+function portalSubtitle(role) {
+  if (role === "ADMIN") return "Administrative workspace";
+  if (role === "Faculty") return "Teaching workspace";
+  return "Student workspace";
+}
+
+function notificationRole(role) {
+  if (role === "Faculty") return "FACULTY";
+  if (role === "STUDENT") return "STUDENT";
+  return "ALL";
+}
+
+function filterTimetableForRole(rows, session, faculty = [], students = []) {
+  if (session.role === "ADMIN") return rows;
+  if (session.role === "Faculty") {
+    const currentFaculty = faculty.find((item) => sameEmail(item.email, session.email)) || faculty[0];
+    return currentFaculty ? rows.filter((row) => row.faculty?.id === currentFaculty.id) : rows;
+  }
+  const currentStudent = students.find((item) => sameEmail(item.email, session.email)) || students[0];
+  return currentStudent
+    ? rows.filter((row) => row.department === currentStudent.department && row.semester === currentStudent.semester)
+    : rows;
+}
+
+function filterAttendanceForRole(rows, session, students = [], faculty = []) {
+  if (session.role === "ADMIN") return rows;
+  if (session.role === "Faculty") {
+    const currentFaculty = faculty.find((item) => sameEmail(item.email, session.email)) || faculty[0];
+    return currentFaculty ? rows.filter((row) => row.faculty?.id === currentFaculty.id) : rows;
+  }
+  const currentStudent = students.find((item) => sameEmail(item.email, session.email)) || students[0];
+  return currentStudent ? rows.filter((row) => row.student?.id === currentStudent.id) : rows;
+}
+
+function sameEmail(left, right) {
+  return String(left || "").toLowerCase() === String(right || "").toLowerCase();
 }
