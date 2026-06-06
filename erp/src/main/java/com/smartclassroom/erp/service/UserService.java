@@ -4,6 +4,7 @@ import com.smartclassroom.erp.entity.User;
 import com.smartclassroom.erp.repository.UserRepository;
 import com.smartclassroom.erp.config.ResourceNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -14,6 +15,9 @@ public class UserService {
 
     @Autowired
     private UserRepository userRepository;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
      // Get all users
     public List<User> getAllUsers() {
         return userRepository.findAll();
@@ -34,6 +38,7 @@ public class UserService {
         if (userRepository.existsByEmail(user.getEmail())) {
             throw new RuntimeException("Email already exists!");
         }
+        user.setPassword(passwordEncoder.encode(user.getPassword()));
         return userRepository.save(user);
     }
     // Update user
@@ -42,7 +47,7 @@ public class UserService {
             .orElseThrow(() -> new ResourceNotFoundException("User not found!"));
         existing.setName(updatedUser.getName());
         existing.setEmail(updatedUser.getEmail());
-        existing.setPassword(updatedUser.getPassword());
+        existing.setPassword(passwordEncoder.encode(updatedUser.getPassword()));
         existing.setRole(updatedUser.getRole());
         return userRepository.save(existing);
     }
