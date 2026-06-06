@@ -1,9 +1,12 @@
 package com.smartclassroom.erp.service;
 
-import com.smartclassroom.erp.entity.*;
+import com.smartclassroom.erp.entity.Faculty;
+import com.smartclassroom.erp.entity.Stream;
+import com.smartclassroom.erp.entity.Timetable;
 import com.smartclassroom.erp.entity.Timetable.Day;
-import com.smartclassroom.erp.repository.*;
-import com.smartclassroom.erp.config.ResourceNotFoundException;
+import com.smartclassroom.erp.repository.FacultyRepository;
+import com.smartclassroom.erp.repository.StreamRepository;
+import com.smartclassroom.erp.repository.TimetableRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -13,111 +16,136 @@ import java.util.Optional;
 @Service
 public class TimetableService {
 
-    @Autowired
-    private TimetableRepository timetableRepository;
+@Autowired
+private TimetableRepository timetableRepository;
 
-    @Autowired
-    private FacultyRepository facultyRepository;
+@Autowired
+private StreamRepository streamRepository;
 
-    // GET ALL
-    public List<Timetable> getAllTimetables() {
-        return timetableRepository.findAll();
-    }
+@Autowired
+private FacultyRepository facultyRepository;
 
-    // GET BY ID
-    public Optional<Timetable> getTimetableById(Long id) {
-        return timetableRepository.findById(id);
-    }
+// Get all timetables
+public List<Timetable> getAllTimetables() {
+    return timetableRepository.findAll();
+}
 
-    // GET BY DAY
-    public List<Timetable> getTimetableByDay(Day day) {
-        return timetableRepository.findByDay(day);
-    }
+// Get timetable by id
+public Optional<Timetable> getTimetableById(Long id) {
+    return timetableRepository.findById(id);
+}
 
-    // GET BY DEPARTMENT
-    public List<Timetable> getTimetableByDepartment(String department) {
-        return timetableRepository.findByDepartment(department);
-    }
+// Get timetable by stream
+public List<Timetable> getTimetableByStream(Long streamId) {
+    Stream stream = streamRepository.findById(streamId)
+            .orElseThrow(() -> new RuntimeException("Stream not found!"));
+    return timetableRepository.findByStream(stream);
+}
 
-    // GET BY DEPARTMENT + SEMESTER
-    public List<Timetable> getTimetableByDepartmentAndSemester(
-            String department, Integer semester) {
-        return timetableRepository.findByDepartmentAndSemester(department, semester);
-    }
+// Get timetable by stream and semester
+public List<Timetable> getTimetableByStreamAndSemester(
+        Long streamId, Integer semester) {
 
-    // GET BY DEPARTMENT + DAY (✔ FIXED METHOD NAME)
-    public List<Timetable> getTimetableByDepartmentAndDay(
-            String department, Day day) {
-        return timetableRepository.findByDepartmentAndDay(department, day);
-    }
+    Stream stream = streamRepository.findById(streamId)
+            .orElseThrow(() -> new RuntimeException("Stream not found!"));
 
-    // GET BY FACULTY
-    public List<Timetable> getTimetableByFaculty(Long facultyId) {
+    return timetableRepository.findByStreamAndSemester(
+            stream, semester);
+}
 
-        Faculty faculty = facultyRepository.findById(facultyId)
-                .orElseThrow(() -> new ResourceNotFoundException("Faculty not found"));
+// Get timetable by stream, semester and day
+public List<Timetable> getTimetableByStreamSemesterAndDay(
+        Long streamId, Integer semester, Day day) {
 
-        return timetableRepository.findByFaculty(faculty);
-    }
+    Stream stream = streamRepository.findById(streamId)
+            .orElseThrow(() -> new RuntimeException("Stream not found!"));
 
-    // GET BY FACULTY + DAY
-    public List<Timetable> getTimetableByFacultyAndDay(Long facultyId, Day day) {
+    return timetableRepository.findByStreamAndSemesterAndDay(
+            stream, semester, day);
+}
 
-        Faculty faculty = facultyRepository.findById(facultyId)
-                .orElseThrow(() -> new ResourceNotFoundException("Faculty not found"));
+// Get timetable by faculty
+public List<Timetable> getTimetableByFaculty(Long facultyId) {
 
-        return timetableRepository.findByFacultyAndDay(faculty, day);
-    }
+    Faculty faculty = facultyRepository.findById(facultyId)
+            .orElseThrow(() -> new RuntimeException("Faculty not found!"));
 
-   public Timetable createTimetable(Timetable timetable) {
+    return timetableRepository.findByFaculty(faculty);
+}
 
-    // Classroom conflict (FIXED)
+// Get timetable by faculty and day
+public List<Timetable> getTimetableByFacultyAndDay(
+        Long facultyId, Day day) {
+
+    Faculty faculty = facultyRepository.findById(facultyId)
+            .orElseThrow(() -> new RuntimeException("Faculty not found!"));
+
+    return timetableRepository.findByFacultyAndDay(faculty, day);
+}
+
+// Create timetable entry
+public Timetable createTimetable(Long streamId, Timetable timetable) {
+
+    // Step 1: Find stream
+    Stream stream = streamRepository.findById(streamId)
+            .orElseThrow(() -> new RuntimeException("Stream not found!"));
+
+    // Step 2: Check classroom clash
     if (timetableRepository.existsClassroomConflict(
             timetable.getClassroom(),
             timetable.getDay(),
             timetable.getStartTime(),
             timetable.getEndTime())) {
 
-        throw new RuntimeException("Classroom already booked at this time!");
+        throw new RuntimeException(
+                "Classroom already booked at this time!");
     }
 
-    // Faculty conflict (FIXED)
+    // Step 3: Check faculty clash
     if (timetableRepository.existsFacultyConflict(
             timetable.getFaculty(),
             timetable.getDay(),
             timetable.getStartTime(),
             timetable.getEndTime())) {
 
-        throw new RuntimeException("Faculty already has class at this time!");
+        throw new RuntimeException(
+                "Faculty already has a class at this time!");
     }
+
+    // Step 4: Link stream
+    timetable.setStream(stream);
 
     return timetableRepository.save(timetable);
 }
-    // UPDATE
-    public Timetable updateTimetable(Long id, Timetable updated) {
 
-        Timetable existing = timetableRepository.findById(id)
-                .orElseThrow(() -> new ResourceNotFoundException("Timetable not found"));
+// Update timetable
+public Timetable updateTimetable(Long id,
+                                 Timetable updatedTimetable) {
 
-        existing.setSubject(updated.getSubject());
-        existing.setFaculty(updated.getFaculty());
-        existing.setClassroom(updated.getClassroom());
-        existing.setDay(updated.getDay());
-        existing.setStartTime(updated.getStartTime());
-        existing.setEndTime(updated.getEndTime());
-        existing.setDepartment(updated.getDepartment());
-        existing.setSemester(updated.getSemester());
+    Timetable existing = timetableRepository.findById(id)
+            .orElseThrow(() ->
+                    new RuntimeException("Timetable not found!"));
 
-        return timetableRepository.save(existing);
+    existing.setSubject(updatedTimetable.getSubject());
+    existing.setFaculty(updatedTimetable.getFaculty());
+    existing.setClassroom(updatedTimetable.getClassroom());
+    existing.setDay(updatedTimetable.getDay());
+    existing.setStartTime(updatedTimetable.getStartTime());
+    existing.setEndTime(updatedTimetable.getEndTime());
+    existing.setSemester(updatedTimetable.getSemester());
+
+    return timetableRepository.save(existing);
+}
+
+// Delete timetable
+public void deleteTimetable(Long id) {
+
+    if (!timetableRepository.existsById(id)) {
+        throw new RuntimeException("Timetable not found!");
     }
 
-    // DELETE
-    public void deleteTimetable(Long id) {
+    timetableRepository.deleteById(id);
+}
 
-        if (!timetableRepository.existsById(id)) {
-            throw new ResourceNotFoundException("Timetable not found");
-        }
 
-        timetableRepository.deleteById(id);
-    }
 }

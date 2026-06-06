@@ -1,7 +1,10 @@
 package com.smartclassroom.erp.entity;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
-import jakarta.validation.constraints.*;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -30,16 +33,14 @@ public class Student {
     @Column(unique = true, nullable = false)
     private String rollNumber;
 
-    @NotBlank(message = "Department is required!")
-    @Column(nullable = false)
-    private String department;
-
-    @NotNull(message = "Semester is required!")
-    @Min(value = 1, message = "Semester must be at least 1!")
-    @Max(value = 8, message = "Semester cannot exceed 8!")
-    @Column(nullable = false)
-    private Integer semester;
-
-    @Pattern(regexp = "^[0-9]{10}$", message = "Phone must be 10 digits!")
+    @Pattern(
+        regexp = "^[0-9]{10}$",
+        message = "Phone number must contain exactly 10 digits!"
+    )
     private String phone;
+
+    @ManyToOne
+    @JoinColumn(name = "section_id", nullable = false)
+    @JsonBackReference
+    private Section section;
 }

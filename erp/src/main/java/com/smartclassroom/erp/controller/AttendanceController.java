@@ -24,7 +24,7 @@ public class AttendanceController {
         return ResponseEntity.ok(attendanceService.getAllAttendance());
     }
 
-    // GET attendance by student id
+    // GET attendance by student
     @GetMapping("/student/{studentId}")
     public ResponseEntity<List<Attendance>> getAttendanceByStudent(
             @PathVariable Long studentId) {
@@ -32,33 +32,33 @@ public class AttendanceController {
             attendanceService.getAttendanceByStudentId(studentId));
     }
 
-    // GET attendance by student and subject
-    @GetMapping("/student/{studentId}/subject/{subject}")
-    public ResponseEntity<List<Attendance>> getAttendanceByStudentAndSubject(
-            @PathVariable Long studentId,
+    // GET attendance by section
+    @GetMapping("/section/{sectionId}")
+    public ResponseEntity<List<Attendance>> getAttendanceBySection(
+            @PathVariable Long sectionId) {
+        return ResponseEntity.ok(
+            attendanceService.getAttendanceBySection(sectionId));
+    }
+
+    // GET attendance by section and date
+    @GetMapping("/section/{sectionId}/date/{date}")
+    public ResponseEntity<List<Attendance>> getAttendanceBySectionAndDate(
+            @PathVariable Long sectionId,
+            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+            LocalDate date) {
+        return ResponseEntity.ok(
+            attendanceService.getAttendanceBySectionAndDate(
+                sectionId, date));
+    }
+
+    // GET attendance by section and subject
+    @GetMapping("/section/{sectionId}/subject/{subject}")
+    public ResponseEntity<List<Attendance>> getAttendanceBySectionAndSubject(
+            @PathVariable Long sectionId,
             @PathVariable String subject) {
         return ResponseEntity.ok(
-            attendanceService.getAttendanceByStudentAndSubject(
-                studentId, subject));
-    }
-
-    // GET attendance by date
-    @GetMapping("/date/{date}")
-    public ResponseEntity<List<Attendance>> getAttendanceByDate(
-            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-            LocalDate date) {
-        return ResponseEntity.ok(
-            attendanceService.getAttendanceByDate(date));
-    }
-
-    // GET attendance by subject and date
-    @GetMapping("/subject/{subject}/date/{date}")
-    public ResponseEntity<List<Attendance>> getAttendanceBySubjectAndDate(
-            @PathVariable String subject,
-            @PathVariable @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
-            LocalDate date) {
-        return ResponseEntity.ok(
-            attendanceService.getAttendanceBySubjectAndDate(subject, date));
+            attendanceService.getAttendanceBySectionAndSubject(
+                sectionId, subject));
     }
 
     // GET attendance percentage
@@ -66,9 +66,9 @@ public class AttendanceController {
     public ResponseEntity<Double> getAttendancePercentage(
             @PathVariable Long studentId,
             @PathVariable String subject) {
-        double percentage = attendanceService
-            .getAttendancePercentage(studentId, subject);
-        return ResponseEntity.ok(percentage);
+        return ResponseEntity.ok(
+            attendanceService.getAttendancePercentage(
+                studentId, subject));
     }
 
     // POST - mark attendance
@@ -76,12 +76,13 @@ public class AttendanceController {
     public ResponseEntity<Attendance> markAttendance(
             @RequestParam Long studentId,
             @RequestParam Long facultyId,
+            @RequestParam Long sectionId,
             @RequestParam String subject,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
             LocalDate date,
             @RequestParam Status status) {
         Attendance attendance = attendanceService.markAttendance(
-            studentId, facultyId, subject, date, status);
+            studentId, facultyId, sectionId, subject, date, status);
         return ResponseEntity.status(HttpStatus.CREATED).body(attendance);
     }
 
@@ -90,13 +91,14 @@ public class AttendanceController {
     public ResponseEntity<Attendance> updateAttendance(
             @PathVariable Long id,
             @RequestParam Status status) {
-        Attendance updated = attendanceService.updateAttendance(id, status);
-        return ResponseEntity.ok(updated);
+        return ResponseEntity.ok(
+            attendanceService.updateAttendance(id, status));
     }
 
     // DELETE - delete attendance
     @DeleteMapping("/{id}")
-    public ResponseEntity<String> deleteAttendance(@PathVariable Long id) {
+    public ResponseEntity<String> deleteAttendance(
+            @PathVariable Long id) {
         attendanceService.deleteAttendance(id);
         return ResponseEntity.ok("Attendance deleted successfully!");
     }

@@ -1,9 +1,9 @@
 package com.smartclassroom.erp.entity;
 
+import com.fasterxml.jackson.annotation.JsonBackReference;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
-
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -21,15 +21,21 @@ public class Attendance {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    // Which student this attendance belongs to
+    // Which student
     @ManyToOne
     @JoinColumn(name = "student_id", nullable = false)
     private Student student;
 
-    // // Which faculty  this attendance belongs to
+    // Which faculty took attendance
     @ManyToOne
     @JoinColumn(name = "faculty_id", nullable = false)
     private Faculty faculty;
+
+    // Which section
+    @ManyToOne
+    @JoinColumn(name = "section_id", nullable = false)
+    @JsonBackReference
+    private Section section;
 
     @NotBlank(message = "Subject is required!")
     @Column(nullable = false)
@@ -43,7 +49,7 @@ public class Attendance {
     @Column(nullable = false)
     private Status status;
 
-    public enum Status {       //Student ← Attendance → Faculty
+    public enum Status {
         PRESENT,
         ABSENT
     }

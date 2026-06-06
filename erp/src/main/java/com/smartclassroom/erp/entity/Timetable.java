@@ -1,7 +1,6 @@
 package com.smartclassroom.erp.entity;
 
 import jakarta.persistence.*;
-import jakarta.validation.constraints.NotBlank;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -19,20 +18,20 @@ public class Timetable {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @NotBlank(message = "Subject is required!")
     @Column(nullable = false)
     private String subject;
 
-    // ✅ Replace teacherName with Faculty entity
     @ManyToOne
     @JoinColumn(name = "faculty_id", nullable = false)
     private Faculty faculty;
 
     @ManyToOne
-    @JoinColumn(name = "classroom_id", nullable = false)
-    private Classroom classroom;
+    @JoinColumn(name = "stream_id", nullable = false)
+    private Stream stream;
 
-    // ✅ Safe enum instead of String
+    @Column(nullable = false)
+    private String classroom;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Day day;
@@ -43,13 +42,8 @@ public class Timetable {
     @Column(nullable = false)
     private LocalTime endTime;
 
-
     @Column(nullable = false)
     private Integer semester;
-
-    @NotBlank(message = "Department is required!")
-    @Column(nullable = false)
-    private String department;
 
     public enum Day {
         MONDAY,
