@@ -65,7 +65,10 @@ async function request(path, options = {}) {
   }
 
   if (!response.ok) {
-    const message = await response.text();
+    const contentType = response.headers.get("content-type") || "";
+    const message = contentType.includes("application/json")
+      ? (await response.json()).message
+      : await response.text();
     throw new Error(message || "Request failed");
   }
 
@@ -92,8 +95,8 @@ export const api = {
       body: JSON.stringify(user),
     });
   },
-  createStudent(student) {
-    return request("/api/students", {
+  createStudent(sectionId, student) {
+    return request(`/api/students/section/${sectionId}`, {
       method: "POST",
       body: JSON.stringify(student),
     });
@@ -107,7 +110,112 @@ export const api = {
   getTimetable() {
     return request("/api/timetable");
   },
+  createTimetable(streamId, payload) {
+    return request(`/api/timetable/stream/${streamId}`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  updateTimetable(id, payload) {
+    return request(`/api/timetable/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
   getAttendance() {
     return request("/api/attendance");
+  },
+  markAttendanceByLocation(payload) {
+    return request("/api/attendance/mark-by-location", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  getUsers() {
+    return request("/api/users");
+  },
+  getStudents() {
+    return request("/api/students");
+  },
+  getFaculty() {
+    return request("/api/faculty");
+  },
+  getStreams() {
+    return request("/api/streams");
+  },
+  getSections() {
+    return request("/api/sections");
+  },
+  getDevices() {
+    return request("/api/devices");
+  },
+  turnDeviceOn(id) {
+    return request(`/api/devices/${id}/on`, { method: "PUT" });
+  },
+  turnDeviceOff(id) {
+    return request(`/api/devices/${id}/off`, { method: "PUT" });
+  },
+  getNotifications(role) {
+    return request(`/api/notifications/role/${role}`);
+  },
+  markNotificationRead(id) {
+    return request(`/api/notifications/${id}/read`, { method: "PUT" });
+  },
+  markAllNotificationsRead(role) {
+    return request(`/api/notifications/role/${role}/read-all`, {
+      method: "PUT",
+    });
+  },
+  createNotification(payload) {
+    const params = new URLSearchParams(payload);
+    return request(`/api/notifications/send/admin?${params.toString()}`, {
+      method: "POST",
+    });
+  },
+  getAssignments() {
+    return request("/api/assignments");
+  },
+  createAssignment(payload) {
+    return request("/api/assignments", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  submitAssignment(assignmentId, payload) {
+    return request(`/api/assignments/${assignmentId}/submissions`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  getAssignmentSubmissions(assignmentId) {
+    return request(`/api/assignments/${assignmentId}/submissions`);
+  },
+  reviewAssignmentSubmission(submissionId, payload) {
+    return request(`/api/assignments/submissions/${submissionId}/review`, {
+      method: "PUT",
+      body: JSON.stringify(payload),
+    });
+  },
+  getNotes(subject = "") {
+    const params = subject ? `?subject=${encodeURIComponent(subject)}` : "";
+    return request(`/api/notes${params}`);
+  },
+  generateNote(payload) {
+    return request("/api/notes/generate", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  downloadNote(id) {
+    return request(`/api/notes/${id}/download`);
+  },
+  sendMessage(payload) {
+    return request("/api/chat/messages", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    });
+  },
+  getConversation(firstUserId, secondUserId) {
+    return request(`/api/chat/conversation/${firstUserId}/${secondUserId}`);
   },
 };

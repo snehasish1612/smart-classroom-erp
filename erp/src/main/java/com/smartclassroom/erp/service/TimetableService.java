@@ -114,6 +114,10 @@ public Timetable createTimetable(Long streamId, Timetable timetable) {
 
     // Step 4: Link stream
     timetable.setStream(stream);
+    timetable.setDepartment(stream.getName());
+    if (timetable.getClassroomId() == null) {
+        timetable.setClassroomId(1L);
+    }
 
     return timetableRepository.save(timetable);
 }
@@ -129,10 +133,15 @@ public Timetable updateTimetable(Long id,
     existing.setSubject(updatedTimetable.getSubject());
     existing.setFaculty(updatedTimetable.getFaculty());
     existing.setClassroom(updatedTimetable.getClassroom());
+    existing.setClassroomId(updatedTimetable.getClassroomId() != null ? updatedTimetable.getClassroomId() : existing.getClassroomId());
     existing.setDay(updatedTimetable.getDay());
     existing.setStartTime(updatedTimetable.getStartTime());
     existing.setEndTime(updatedTimetable.getEndTime());
     existing.setSemester(updatedTimetable.getSemester());
+    existing.setDepartment(
+            updatedTimetable.getDepartment() != null
+                    ? updatedTimetable.getDepartment()
+                    : existing.getStream().getName());
 
     return timetableRepository.save(existing);
 }

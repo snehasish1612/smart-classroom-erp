@@ -2,7 +2,9 @@ package com.smartclassroom.erp.controller;
 
 import com.smartclassroom.erp.entity.Attendance;
 import com.smartclassroom.erp.entity.Attendance.Status;
+import com.smartclassroom.erp.dto.AttendanceLocationRequest;
 import com.smartclassroom.erp.service.AttendanceService;
+import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -14,6 +16,10 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/attendance")
 public class AttendanceController {
+
+    private static final double CAMPUS_LATITUDE = 22.7237;
+    private static final double CAMPUS_LONGITUDE = 88.3792;
+    private static final double CAMPUS_RADIUS_METERS = 150;
 
     @Autowired
     private AttendanceService attendanceService;
@@ -83,6 +89,32 @@ public class AttendanceController {
             @RequestParam Status status) {
         Attendance attendance = attendanceService.markAttendance(
             studentId, facultyId, sectionId, subject, date, status);
+        return ResponseEntity.status(HttpStatus.CREATED).body(attendance);
+    }
+
+    @PostMapping("/mark-by-location")
+    public ResponseEntity<?> markAttendanceByLocation(
+            @Valid @RequestBody AttendanceLocationRequest request) {
+        double distance = attendanceService.calculateDistance(
+            request.getLatitude(),
+            request.getLongitude(),
+            CAMPUS_LATITUDE,
+            CAMPUS_LONGITUDE);
+
+        if (distance > CAMPUS_RADIUS_METERS) {
+            return ResponseEntity.badRequest()
+                .body("You are outside college campus.");
+        }
+
+        Attendance attendance = attendanceService.markAttendance(
+            request.getStudentId(),
+            request.getFacultyId(),
+            request.getSectionId(),
+            request.getSubject(),
+            LocalDate.now(),
+            Status.PRESENT,
+            request.getLatitude(),
+            request.getLongitude());
         return ResponseEntity.status(HttpStatus.CREATED).body(attendance);
     }
 

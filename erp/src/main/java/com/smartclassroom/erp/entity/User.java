@@ -35,7 +35,7 @@ public class User {
     @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
 
-    @Enumerated(EnumType.STRING)
+    @Convert(converter = RoleConverter.class)
     @Column(nullable = false)
     private Role role;
 
@@ -43,5 +43,23 @@ public class User {
         ADMIN,
         FACULTY,
         STUDENT
+    }
+
+    @Converter
+    public static class RoleConverter implements AttributeConverter<Role, String> {
+
+        @Override
+        public String convertToDatabaseColumn(Role role) {
+            return role == null ? null : role.name();
+        }
+
+        @Override
+        public Role convertToEntityAttribute(String value) {
+            if (value == null) {
+                return null;
+            }
+
+            return Role.valueOf(value.trim().toUpperCase());
+        }
     }
 }

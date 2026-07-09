@@ -46,6 +46,7 @@ public class StudentService {
         // Step 1: Find section
         Section section = sectionRepository.findById(sectionId)
             .orElseThrow(() -> new RuntimeException("Section not found!"));
+        applySectionDefaults(student, section);
 
         // Step 2: Business logic checks
         if (studentRepository.existsByEmail(student.getEmail())) {
@@ -70,7 +71,10 @@ public class StudentService {
         existing.setName(updatedStudent.getName());
         existing.setEmail(updatedStudent.getEmail());
         existing.setRollNumber(updatedStudent.getRollNumber());
+        existing.setDepartment(updatedStudent.getDepartment());
+        existing.setSemester(updatedStudent.getSemester());
         existing.setPhone(updatedStudent.getPhone());
+        applySectionDefaults(existing, existing.getSection());
 
         return studentRepository.save(existing);
     }
@@ -81,5 +85,16 @@ public class StudentService {
             throw new RuntimeException("Student not found!");
         }
         studentRepository.deleteById(id);
+    }
+
+    private void applySectionDefaults(Student student, Section section) {
+        if (student.getDepartment() == null || student.getDepartment().isBlank()) {
+            String streamName = section.getStream() == null ? null : section.getStream().getName();
+            student.setDepartment(streamName == null || streamName.isBlank() ? "CSE" : streamName);
+        }
+
+        if (student.getSemester() == null) {
+            student.setSemester(section.getSemester());
+        }
     }
 }

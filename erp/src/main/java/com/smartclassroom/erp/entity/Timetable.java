@@ -26,11 +26,14 @@ public class Timetable {
     private Faculty faculty;
 
     @ManyToOne
-    @JoinColumn(name = "stream_id", nullable = false)
+    @JoinColumn(name = "stream_id", nullable = false, foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     private Stream stream;
 
     @Column(nullable = false)
     private String classroom;
+
+    @Column(nullable = false)
+    private Long classroomId;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -44,6 +47,9 @@ public class Timetable {
 
     @Column(nullable = false)
     private Integer semester;
+
+    @Column(nullable = false)
+    private String department;
 
     public enum Day {
         MONDAY,

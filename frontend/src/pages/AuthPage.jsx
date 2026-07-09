@@ -34,12 +34,18 @@ const AuthPage = ({ onAuthenticated }) => {
 
     try {
       if (isRegistering) {
-        await api.register({
-          name: form.name,
-          email: form.email,
-          password: form.password,
-          role: form.role,
-        });
+        try {
+          await api.register({
+            name: form.name,
+            email: form.email,
+            password: form.password,
+            role: form.role,
+          });
+        } catch (registerError) {
+          if (!registerError.message.includes("Email already exists")) {
+            throw registerError;
+          }
+        }
       }
 
       const session = saveSession(
@@ -50,7 +56,24 @@ const AuthPage = ({ onAuthenticated }) => {
       );
 
       if (isRegistering && form.role === "STUDENT") {
-        await api.createStudent({
+        const students = await api.getStudents();
+        const existingStudent = students.find((item) => item.email === form.email);
+
+        if (existingStudent) {
+          onAuthenticated(session);
+          return;
+        }
+
+        const sections = await api.getSections();
+        const section = sections.find(
+          (item) => Number(item.semester) === Number(form.semester),
+        ) || sections[0];
+
+        if (!section) {
+          throw new Error("No section found. Please create a section before registering students.");
+        }
+
+        await api.createStudent(section.id, {
           name: form.name,
           email: form.email,
           rollNumber: form.rollNumber,
@@ -60,15 +83,20 @@ const AuthPage = ({ onAuthenticated }) => {
         });
       }
 
-      if (isRegistering && form.role === "Faculty") {
-        await api.createFaculty({
-          name: form.name,
-          email: form.email,
-          department: form.department,
-          phone: form.phone || null,
-          designation: form.designation,
-          subjectsTaught: form.subjectsTaught || null,
-        });
+      if (isRegistering && form.role === "FACULTY") {
+        const faculty = await api.getFaculty();
+        const existingFaculty = faculty.find((item) => item.email === form.email);
+
+        if (!existingFaculty) {
+          await api.createFaculty({
+            name: form.name,
+            email: form.email,
+            department: form.department,
+            phone: form.phone || null,
+            designation: form.designation,
+            subjectsTaught: form.subjectsTaught || null,
+          });
+        }
       }
 
       onAuthenticated(session);
@@ -145,7 +173,7 @@ const AuthPage = ({ onAuthenticated }) => {
                 className="mt-1 w-full border rounded-xl px-4 py-3 bg-white"
               >
                 <option value="STUDENT">Student</option>
-                <option value="Faculty">Faculty</option>
+                <option value="FACULTY">Faculty</option>
                 <option value="ADMIN">Admin</option>
               </select>
             </label>
@@ -211,7 +239,7 @@ const AuthPage = ({ onAuthenticated }) => {
               </>
             )}
 
-            {form.role === "Faculty" && (
+            {form.role === "FACULTY" && (
               <>
                 <label className="block">
                   <span className="text-sm font-medium text-slate-700">

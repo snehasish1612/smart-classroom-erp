@@ -33,7 +33,7 @@ public class Attendance {
 
     // Which section
     @ManyToOne
-    @JoinColumn(name = "section_id", nullable = false)
+    @JoinColumn(name = "section_id", foreignKey = @ForeignKey(ConstraintMode.NO_CONSTRAINT))
     @JsonBackReference
     private Section section;
 
@@ -48,6 +48,10 @@ public class Attendance {
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
     private Status status;
+
+    private Double latitude;
+
+    private Double longitude;
 
     public enum Status {
         PRESENT,

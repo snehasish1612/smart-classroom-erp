@@ -17,6 +17,8 @@ import java.util.List;
 @Service
 public class AttendanceService {
 
+    private static final double EARTH_RADIUS_METERS = 6_371_000;
+
     @Autowired
     private AttendanceRepository attendanceRepository;
 
@@ -69,6 +71,14 @@ public class AttendanceService {
             Long studentId, Long facultyId,
             Long sectionId, String subject,
             LocalDate date, Status status) {
+        return markAttendance(studentId, facultyId, sectionId, subject, date, status, null, null);
+    }
+
+    public Attendance markAttendance(
+            Long studentId, Long facultyId,
+            Long sectionId, String subject,
+            LocalDate date, Status status,
+            Double latitude, Double longitude) {
 
         // Step 1: Find all required entities
         Student student = studentRepository.findById(studentId)
@@ -93,8 +103,30 @@ public class AttendanceService {
         attendance.setSubject(subject);
         attendance.setDate(date);
         attendance.setStatus(status);
+        attendance.setLatitude(latitude);
+        attendance.setLongitude(longitude);
 
         return attendanceRepository.save(attendance);
+    }
+
+    public double calculateDistance(
+            double sourceLatitude,
+            double sourceLongitude,
+            double targetLatitude,
+            double targetLongitude) {
+        double latitudeDistance = Math.toRadians(targetLatitude - sourceLatitude);
+        double longitudeDistance = Math.toRadians(targetLongitude - sourceLongitude);
+        double sourceLatitudeRadians = Math.toRadians(sourceLatitude);
+        double targetLatitudeRadians = Math.toRadians(targetLatitude);
+
+        double haversine = Math.sin(latitudeDistance / 2) * Math.sin(latitudeDistance / 2)
+            + Math.cos(sourceLatitudeRadians)
+            * Math.cos(targetLatitudeRadians)
+            * Math.sin(longitudeDistance / 2)
+            * Math.sin(longitudeDistance / 2);
+        double angularDistance = 2 * Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine));
+
+        return EARTH_RADIUS_METERS * angularDistance;
     }
 
     // Calculate attendance percentage
