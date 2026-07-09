@@ -1,41 +1,113 @@
-const API_BASE = import.meta.env.DEV ? "" : import.meta.env.VITE_API_BASE_URL || "http://localhost:8080";
+const TOKEN_KEY = "smartClassroomToken";
+const USER_KEY = "smartClassroomUser";
+
+export function getStoredSession() {
+  const token = localStorage.getItem(TOKEN_KEY);
+  const userJson = localStorage.getItem(USER_KEY);
+
+  if (!token || !userJson) {
+    return null;
+  }
+
+  try {
+    return {
+      token,
+      user: JSON.parse(userJson),
+    };
+  } catch {
+    clearSession();
+    return null;
+  }
+}
+
+export function saveSession(authResponse) {
+  const user = {
+    id: authResponse.id,
+    name: authResponse.name,
+    email: authResponse.email,
+    role: authResponse.role,
+  };
+
+  localStorage.setItem(TOKEN_KEY, authResponse.token);
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+
+  return {
+    token: authResponse.token,
+    user,
+  };
+}
+
+export function clearSession() {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+}
 
 async function request(path, options = {}) {
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: {
-      ...(options.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
-      ...options.headers,
-    },
+  const token = localStorage.getItem(TOKEN_KEY);
+  const headers = new Headers(options.headers);
+
+  if (!headers.has("Content-Type") && options.body) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+
+  const response = await fetch(path, {
     ...options,
+    headers,
   });
 
-  const text = await response.text();
-  const data = text ? tryJson(text) : null;
+  if (response.status === 401) {
+    clearSession();
+    throw new Error("Session expired. Please sign in again.");
+  }
 
   if (!response.ok) {
-    const message = data?.message || data?.error || text || `Request failed with ${response.status}`;
-    throw new Error(message);
+    const message = await response.text();
+    throw new Error(message || "Request failed");
   }
 
-  return data;
-}
-
-function tryJson(text) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return text;
+  if (response.status === 204) {
+    return null;
   }
-}
 
-const json = (body) => JSON.stringify(body);
-const qs = (params) => new URLSearchParams(params).toString();
+  const contentType = response.headers.get("content-type") || "";
+  return contentType.includes("application/json")
+    ? response.json()
+    : response.text();
+}
 
 export const api = {
-  list: (path) => request(path),
-  create: (path, body) => request(path, { method: "POST", body: json(body) }),
-  update: (path, body) => request(path, { method: "PUT", body: json(body) }),
-  remove: (path) => request(path, { method: "DELETE" }),
-  put: (path) => request(path, { method: "PUT" }),
-  postParams: (path, params) => request(`${path}?${qs(params)}`, { method: "POST" }),
+  login(credentials) {
+    return request("/api/auth/login", {
+      method: "POST",
+      body: JSON.stringify(credentials),
+    });
+  },
+  register(user) {
+    return request("/api/users", {
+      method: "POST",
+      body: JSON.stringify(user),
+    });
+  },
+  createStudent(student) {
+    return request("/api/students", {
+      method: "POST",
+      body: JSON.stringify(student),
+    });
+  },
+  createFaculty(faculty) {
+    return request("/api/faculty", {
+      method: "POST",
+      body: JSON.stringify(faculty),
+    });
+  },
+  getTimetable() {
+    return request("/api/timetable");
+  },
+  getAttendance() {
+    return request("/api/attendance");
+  },
 };
