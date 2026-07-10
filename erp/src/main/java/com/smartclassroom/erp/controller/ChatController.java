@@ -12,6 +12,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/chat")
+@CrossOrigin(origins = "*")
 public class ChatController {
 
     private final ChatService chatService;

@@ -2,7 +2,7 @@ import SearchBar from "./SearchBar";
 
 const Header = ({ user, onLogout }) => {
   return (
-    <div className="flex justify-between items-center">
+    <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div>
         <h1 className="text-3xl font-bold">
           {user?.name || "Smart Classroom"}
@@ -10,7 +10,7 @@ const Header = ({ user, onLogout }) => {
         <p className="text-sm text-slate-500">{user?.role}</p>
       </div>
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
         <SearchBar />
         <button
           onClick={onLogout}

@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { api } from "../api";
+import { api, getStoredSession } from "../api";
 import Sidebar from "../components/layout/Sidebar";
 import Header from "../components/layout/Header";
+import SockJS from "sockjs-client";
+import { Client } from "@stomp/stompjs";
 import UpcomingClasses from "../components/classes/UpcomingClasses";
 import AttendanceCard from "../components/cards/AttendanceCard";
 import CalendarCard from "../components/cards/CalendarCard";
@@ -62,7 +64,7 @@ const Panel = ({ title, children, action }) => (
 const TodayTimetable = ({ classes = [], isLoading }) => (
   <Panel title="Today's Timetable">
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[680px] text-left text-sm">
+      <table className="w-full min-w-full sm:min-w-[680px] text-left text-sm">
         <thead>
           <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
             <th className="py-2 pr-3">Time</th>
@@ -153,6 +155,7 @@ const Dashboard = ({ user, onLogout }) => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [activeSection, setActiveSection] = useState("dashboard");
   const [selectedClassId, setSelectedClassId] = useState("");
   const [selectedChatUserId, setSelectedChatUserId] = useState("");
   const [message, setMessage] = useState("");
@@ -373,9 +376,15 @@ const Dashboard = ({ user, onLogout }) => {
 
   const submitAssignment = (event) => {
     event.preventDefault();
+    const assignmentId = selectedAssignmentId || data.assignments[0]?.id;
+    if (!assignmentId) {
+      setError("Please select an assignment before submitting.");
+      return;
+    }
+
     withAction(
       () =>
-        api.submitAssignment(selectedAssignmentId || data.assignments[0]?.id, {
+        api.submitAssignment(assignmentId, {
           studentId: currentStudent?.id || 1,
           content: submissionText,
         }),
@@ -444,186 +453,391 @@ const Dashboard = ({ user, onLogout }) => {
       .catch((chatError) => setError(chatError.message));
   };
 
-  return (
-    <div className="flex min-h-screen bg-slate-100 p-4 gap-4">
-      <Sidebar />
+  // Poll selected conversation when messages view is active
+  useEffect(() => {
+    if (activeSection !== "messages" || !selectedChatUserId) return;
 
-      <main className="flex-1 overflow-auto">
+    let mounted = true;
+    const fetchConv = () => {
+      api.getConversation(userId, selectedChatUserId)
+        .then((messages) => {
+          if (!mounted) return;
+          setConversation(Array.isArray(messages) ? messages : []);
+        })
+        .catch(() => {});
+    };
+
+    fetchConv();
+    const id = window.setInterval(fetchConv, 5000);
+    return () => {
+      mounted = false;
+      window.clearInterval(id);
+    };
+  }, [activeSection, selectedChatUserId, userId]);
+
+  // Poll notifications to surface incoming message notifications
+  useEffect(() => {
+    let mounted = true;
+    const fetchNotifs = () => {
+      api.getNotifications(toRole(userRole))
+        .then((notifs) => {
+          if (!mounted) return;
+          setData((prev) => ({ ...prev, notifications: Array.isArray(notifs) ? notifs : [] }));
+        })
+        .catch(() => {});
+    };
+
+    fetchNotifs();
+    const nid = window.setInterval(fetchNotifs, 15000);
+    return () => {
+      mounted = false;
+      window.clearInterval(nid);
+    };
+  }, [userRole]);
+
+  // WebSocket: connect to receive real-time messages and notifications
+  useEffect(() => {
+    if (!userId) return;
+
+    const session = getStoredSession();
+    const token = session?.token;
+
+    const stomp = new Client({
+      webSocketFactory: () => new SockJS('/ws'),
+      reconnectDelay: 5000,
+      connectHeaders: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+
+    stomp.onConnect = (frame) => {
+      try {
+        // subscribe to personal message queue (use /user/queue/messages so broker maps by Principal)
+        stomp.subscribe(`/user/queue/messages`, (msg) => {
+          try {
+            const payload = JSON.parse(msg.body);
+            // if conversation with sender is open, append, else add a notification
+            if (String(selectedChatUserId) === String(payload.sender?.id) && activeSection === 'messages') {
+              setConversation((prev) => [...prev, payload]);
+            } else {
+              // create a notification-shaped object for incoming chat messages so UI can show "Open chat"
+              const chatNotif = {
+                id: null,
+                title: `New message from ${payload.sender?.name || 'Unknown'}`,
+                message: payload.message,
+                sentBy: payload.sender,
+                isRead: false,
+              };
+              setData((prev) => ({ ...prev, notifications: [chatNotif, ...(prev.notifications || [])] }));
+            }
+          } catch (e) {}
+        });
+
+        // subscribe to personal notifications
+        stomp.subscribe(`/user/queue/notifications`, (msg) => {
+          try {
+            const payload = JSON.parse(msg.body);
+            setData((prev) => ({ ...prev, notifications: [payload, ...(prev.notifications || [])] }));
+          } catch (e) {}
+        });
+      } catch (e) {
+        // ignore
+      }
+    };
+
+    stomp.activate();
+    return () => stomp.deactivate();
+  }, [userId, activeSection, selectedChatUserId]);
+
+  return (
+    <div className="flex flex-col md:flex-row min-h-screen bg-slate-100 p-4 gap-4">
+      <Sidebar user={user} active={activeSection} onSelect={setActiveSection} />
+
+      <main className="flex-1 overflow-auto min-w-0">
         <Header user={user} onLogout={onLogout} />
 
         {error && <div className="mt-4 rounded-lg bg-red-50 text-red-700 px-4 py-3">{error}</div>}
         {notice && <div className="mt-4 rounded-lg bg-green-50 text-green-700 px-4 py-3">{notice}</div>}
 
-        <div className="grid grid-cols-12 gap-4 mt-4">
-          <div className="col-span-12 xl:col-span-9">
-            <UpcomingClasses classes={upcomingClasses} isLoading={isLoading} />
-          </div>
-
-          <div className="col-span-12 md:col-span-4 xl:col-span-3">
-            <TimeCard />
-          </div>
-
-          <div className="col-span-12 md:col-span-4">
-            <AttendanceCard percentage={attendancePercent} total={data.attendance.length} />
-          </div>
-
-          <div className="col-span-12 md:col-span-4">
-            <ExtraclassesCard count={classes.length} />
-          </div>
-
-          <div className="col-span-12 md:col-span-4">
-            <CalendarCard />
-          </div>
-
-          <div className="col-span-12 xl:col-span-8">
-            <OngoingClasses classes={visibleClasses} isLoading={isLoading} />
-          </div>
-
-          {userRole === "STUDENT" && (
-            <div className="col-span-12">
-              <TodayTimetable classes={todayClasses} isLoading={isLoading} />
+        {activeSection === "dashboard" ? (
+          <div className="grid grid-cols-12 gap-4 mt-4">
+            <div className="col-span-12 xl:col-span-9">
+              <Panel title="Upcoming Classes">
+                <UpcomingClasses classes={upcomingClasses} isLoading={isLoading} />
+              </Panel>
             </div>
-          )}
 
-          <div className="col-span-12 xl:col-span-4">
-            <Panel title="Location Attendance">
-              <div className="space-y-3">
-                <SelectField
-                  label="Class"
-                  value={selectedClass?.id || ""}
-                  onChange={(event) => setSelectedClassId(event.target.value)}
-                >
-                  {classes.length === 0 && (
-                    <option value="">No classes loaded</option>
-                  )}
-                  {classes.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.subject} - {item.faculty}
-                    </option>
-                  ))}
-                </SelectField>
-                <button onClick={markAttendance} className="w-full rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700">
-                  Mark With Latitude And Longitude
-                </button>
+            <div className="col-span-12 sm:col-span-6 xl:col-span-3">
+              <TimeCard />
+            </div>
+
+            <div className="col-span-12 sm:col-span-6 xl:col-span-4">
+              <AttendanceCard percentage={attendancePercent} total={data.attendance.length} />
+            </div>
+
+            <div className="col-span-12 sm:col-span-6 xl:col-span-4">
+              <ExtraclassesCard count={classes.length} />
+            </div>
+
+            <div className="col-span-12 sm:col-span-6 xl:col-span-4">
+              <CalendarCard />
+            </div>
+
+            <div className="col-span-12 xl:col-span-8">
+              <OngoingClasses classes={visibleClasses} isLoading={isLoading} />
+            </div>
+
+            {userRole === "STUDENT" && (
+              <div className="col-span-12">
+                <TodayTimetable classes={todayClasses} isLoading={isLoading} />
               </div>
-            </Panel>
-          </div>
+            )}
 
-          {userRole === "FACULTY" && (
-            <div className="col-span-12">
-              <Panel title="Customized Teacher Dashboard">
-                <div className="grid gap-3 md:grid-cols-4">
-                  <div className="rounded-lg bg-slate-50 p-3">
-                    <p className="text-xs text-slate-500">My classes</p>
-                    <p className="text-2xl font-bold">{teacherClasses.length}</p>
+            <div className="col-span-12 xl:col-span-4">
+              <Panel title="Location Attendance">
+                <div className="space-y-3">
+                  <SelectField
+                    label="Class"
+                    value={selectedClass?.id || ""}
+                    onChange={(event) => setSelectedClassId(event.target.value)}
+                  >
+                    {classes.length === 0 && (
+                      <option value="">No classes loaded</option>
+                    )}
+                    {classes.map((item) => (
+                      <option key={item.id} value={item.id}>
+                        {item.subject} - {item.faculty}
+                      </option>
+                    ))}
+                  </SelectField>
+                  <button onClick={markAttendance} className="w-full rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700">
+                    Mark With Latitude And Longitude
+                  </button>
+                </div>
+              </Panel>
+            </div>
+
+            {userRole === "FACULTY" && (
+              <div className="col-span-12">
+                <Panel title="Customized Teacher Dashboard">
+                  <div className="grid gap-3 md:grid-cols-4">
+                    <div className="rounded-lg bg-slate-50 p-3">
+                      <p className="text-xs text-slate-500">My classes</p>
+                      <p className="text-2xl font-bold">{teacherClasses.length}</p>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 p-3">
+                      <p className="text-xs text-slate-500">Assignments</p>
+                      <p className="text-2xl font-bold">{data.assignments.length}</p>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 p-3">
+                      <p className="text-xs text-slate-500">Unread notices</p>
+                      <p className="text-2xl font-bold">{unreadCount}</p>
+                    </div>
+                    <div className="rounded-lg bg-slate-50 p-3">
+                      <p className="text-xs text-slate-500">Devices online</p>
+                      <p className="text-2xl font-bold">{onlineDevices}</p>
+                    </div>
                   </div>
-                  <div className="rounded-lg bg-slate-50 p-3">
-                    <p className="text-xs text-slate-500">Assignments</p>
-                    <p className="text-2xl font-bold">{data.assignments.length}</p>
-                  </div>
-                  <div className="rounded-lg bg-slate-50 p-3">
-                    <p className="text-xs text-slate-500">Unread notices</p>
-                    <p className="text-2xl font-bold">{unreadCount}</p>
-                  </div>
-                  <div className="rounded-lg bg-slate-50 p-3">
-                    <p className="text-xs text-slate-500">Devices online</p>
-                    <p className="text-2xl font-bold">{onlineDevices}</p>
+                </Panel>
+              </div>
+            )}
+
+            {userRole !== "STUDENT" && (
+              <div className="col-span-12 xl:col-span-6">
+                <Panel title="Routine Updation">
+                  <form onSubmit={saveRoutine} className="grid gap-3 md:grid-cols-2">
+                    <Field label="Subject" required value={routineForm.subject} onChange={(e) => setRoutineForm({ ...routineForm, subject: e.target.value })} />
+                    <Field label="Classroom" required value={routineForm.classroom} onChange={(e) => setRoutineForm({ ...routineForm, classroom: e.target.value })} />
+                    <SelectField label="Faculty" value={routineForm.facultyId} onChange={(e) => setRoutineForm({ ...routineForm, facultyId: e.target.value })}>
+                      <option value="">Use current faculty</option>
+                      {data.faculty.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                    </SelectField>
+                    <SelectField label="Stream" value={routineForm.streamId} onChange={(e) => setRoutineForm({ ...routineForm, streamId: e.target.value })}>
+                      <option value="">Default stream</option>
+                      {data.streams.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                    </SelectField>
+                    <SelectField label="Day" value={routineForm.day} onChange={(e) => setRoutineForm({ ...routineForm, day: e.target.value })}>
+                      {days.map((item) => <option key={item}>{item}</option>)}
+                    </SelectField>
+                    <Field label="Semester" type="number" min="1" value={routineForm.semester} onChange={(e) => setRoutineForm({ ...routineForm, semester: e.target.value })} />
+                    <Field label="Start Time" type="time" value={routineForm.startTime} onChange={(e) => setRoutineForm({ ...routineForm, startTime: e.target.value })} />
+                    <Field label="End Time" type="time" value={routineForm.endTime} onChange={(e) => setRoutineForm({ ...routineForm, endTime: e.target.value })} />
+                    <button className="md:col-span-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Save Routine</button>
+                  </form>
+                </Panel>
+              </div>
+            )}
+
+            <div className="col-span-12 xl:col-span-6">
+              <Panel title="Assignments">
+                <div className="grid gap-4 lg:grid-cols-2">
+                  {userRole !== "STUDENT" && (
+                    <form onSubmit={createAssignment} className="space-y-3">
+                      <Field label="Title" required value={assignmentForm.title} onChange={(e) => setAssignmentForm({ ...assignmentForm, title: e.target.value })} />
+                      <Field label="Subject" required value={assignmentForm.subject} onChange={(e) => setAssignmentForm({ ...assignmentForm, subject: e.target.value })} />
+                      <Field label="Due Date" required type="date" value={assignmentForm.dueDate} onChange={(e) => setAssignmentForm({ ...assignmentForm, dueDate: e.target.value })} />
+                      <SelectField label="Section" value={assignmentForm.sectionId} onChange={(e) => setAssignmentForm({ ...assignmentForm, sectionId: e.target.value })}>
+                        <option value="">All sections</option>
+                        {data.sections.map((item) => <option key={item.id} value={item.id}>{item.name || item.sectionName || `Section ${item.id}`}</option>)}
+                      </SelectField>
+                      <Field label="Description" value={assignmentForm.description} onChange={(e) => setAssignmentForm({ ...assignmentForm, description: e.target.value })} />
+                      <button className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Create Assignment</button>
+                    </form>
+                  )}
+                  <form onSubmit={submitAssignment} className="space-y-3">
+                    <SelectField label="Assignment" value={selectedAssignmentId} onChange={(e) => setSelectedAssignmentId(e.target.value)}>
+                      {data.assignments.map((item) => <option key={item.id} value={item.id}>{item.title} - {item.subject}</option>)}
+                    </SelectField>
+                    <textarea
+                      required
+                      value={submissionText}
+                      onChange={(e) => setSubmissionText(e.target.value)}
+                      className="min-h-28 w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                      placeholder="Write submission notes or paste a document link"
+                    />
+                    <button className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Submit Assignment</button>
+                  </form>
+                </div>
+              </Panel>
+            </div>
+
+            <div className="col-span-12 xl:col-span-6">
+              <Panel title="AI Notes">
+                <div className="grid gap-4 lg:grid-cols-2">
+                  {userRole !== "STUDENT" && (
+                    <form onSubmit={generateNote} className="space-y-3">
+                      <Field label="Subject" required value={noteForm.subject} onChange={(e) => setNoteForm({ ...noteForm, subject: e.target.value })} />
+                      <Field label="Topic" required value={noteForm.topic} onChange={(e) => setNoteForm({ ...noteForm, topic: e.target.value })} />
+                      <button className="w-full rounded-md bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">Generate And Publish Notes</button>
+                    </form>
+                  )}
+
+                  <div className="max-h-64 space-y-2 overflow-auto">
+                    {data.notes.map((note) => (
+                      <div key={note.id} className="rounded-lg bg-slate-50 p-3">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-medium text-slate-900">{note.topic}</p>
+                            <p className="text-xs text-slate-500">{note.subject}</p>
+                          </div>
+                          <button type="button" onClick={() => downloadNote(note)} className="rounded-md bg-white px-3 py-1 text-xs font-semibold text-blue-600 shadow-sm">Download</button>
+                        </div>
+                        <p className="mt-2 line-clamp-3 text-xs text-slate-600">{note.content}</p>
+                      </div>
+                    ))}
+                    {data.notes.length === 0 && <p className="text-sm text-slate-500">No notes published yet.</p>}
                   </div>
                 </div>
               </Panel>
             </div>
-          )}
 
-          {userRole !== "STUDENT" && (
-            <div className="col-span-12 xl:col-span-6">
-              <Panel title="Routine Updation">
-                <form onSubmit={saveRoutine} className="grid gap-3 md:grid-cols-2">
-                  <Field label="Subject" required value={routineForm.subject} onChange={(e) => setRoutineForm({ ...routineForm, subject: e.target.value })} />
-                  <Field label="Classroom" required value={routineForm.classroom} onChange={(e) => setRoutineForm({ ...routineForm, classroom: e.target.value })} />
-                  <SelectField label="Faculty" value={routineForm.facultyId} onChange={(e) => setRoutineForm({ ...routineForm, facultyId: e.target.value })}>
-                    <option value="">Use current faculty</option>
-                    {data.faculty.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                  </SelectField>
-                  <SelectField label="Stream" value={routineForm.streamId} onChange={(e) => setRoutineForm({ ...routineForm, streamId: e.target.value })}>
-                    <option value="">Default stream</option>
-                    {data.streams.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-                  </SelectField>
-                  <SelectField label="Day" value={routineForm.day} onChange={(e) => setRoutineForm({ ...routineForm, day: e.target.value })}>
-                    {days.map((item) => <option key={item}>{item}</option>)}
-                  </SelectField>
-                  <Field label="Semester" type="number" min="1" value={routineForm.semester} onChange={(e) => setRoutineForm({ ...routineForm, semester: e.target.value })} />
-                  <Field label="Start Time" type="time" value={routineForm.startTime} onChange={(e) => setRoutineForm({ ...routineForm, startTime: e.target.value })} />
-                  <Field label="End Time" type="time" value={routineForm.endTime} onChange={(e) => setRoutineForm({ ...routineForm, endTime: e.target.value })} />
-                  <button className="md:col-span-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Save Routine</button>
-                </form>
-              </Panel>
-            </div>
-          )}
-
-          <div className="col-span-12 xl:col-span-6">
-            <Panel title="Assignments">
-              <div className="grid gap-4 lg:grid-cols-2">
-                {userRole !== "STUDENT" && (
-                  <form onSubmit={createAssignment} className="space-y-3">
-                    <Field label="Title" required value={assignmentForm.title} onChange={(e) => setAssignmentForm({ ...assignmentForm, title: e.target.value })} />
-                    <Field label="Subject" required value={assignmentForm.subject} onChange={(e) => setAssignmentForm({ ...assignmentForm, subject: e.target.value })} />
-                    <Field label="Due Date" required type="date" value={assignmentForm.dueDate} onChange={(e) => setAssignmentForm({ ...assignmentForm, dueDate: e.target.value })} />
-                    <SelectField label="Section" value={assignmentForm.sectionId} onChange={(e) => setAssignmentForm({ ...assignmentForm, sectionId: e.target.value })}>
-                      <option value="">All sections</option>
-                      {data.sections.map((item) => <option key={item.id} value={item.id}>{item.name || item.sectionName || `Section ${item.id}`}</option>)}
-                    </SelectField>
-                    <Field label="Description" value={assignmentForm.description} onChange={(e) => setAssignmentForm({ ...assignmentForm, description: e.target.value })} />
-                    <button className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Create Assignment</button>
-                  </form>
-                )}
-                <form onSubmit={submitAssignment} className="space-y-3">
-                  <SelectField label="Assignment" value={selectedAssignmentId} onChange={(e) => setSelectedAssignmentId(e.target.value)}>
-                    {data.assignments.map((item) => <option key={item.id} value={item.id}>{item.title} - {item.subject}</option>)}
-                  </SelectField>
-                  <textarea
-                    required
-                    value={submissionText}
-                    onChange={(e) => setSubmissionText(e.target.value)}
-                    className="min-h-28 w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
-                    placeholder="Write submission notes or paste a document link"
-                  />
-                  <button className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Submit Assignment</button>
-                </form>
-              </div>
-            </Panel>
-          </div>
-
-          <div className="col-span-12 xl:col-span-6">
-            <Panel title="AI Notes">
-              <div className="grid gap-4 lg:grid-cols-2">
-                {userRole !== "STUDENT" && (
-                  <form onSubmit={generateNote} className="space-y-3">
-                    <Field label="Subject" required value={noteForm.subject} onChange={(e) => setNoteForm({ ...noteForm, subject: e.target.value })} />
-                    <Field label="Topic" required value={noteForm.topic} onChange={(e) => setNoteForm({ ...noteForm, topic: e.target.value })} />
-                    <button className="w-full rounded-md bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">Generate And Publish Notes</button>
-                  </form>
-                )}
-
-                <div className="max-h-64 space-y-2 overflow-auto">
-                  {data.notes.map((note) => (
-                    <div key={note.id} className="rounded-lg bg-slate-50 p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="font-medium text-slate-900">{note.topic}</p>
-                          <p className="text-xs text-slate-500">{note.subject}</p>
-                        </div>
-                        <button type="button" onClick={() => downloadNote(note)} className="rounded-md bg-white px-3 py-1 text-xs font-semibold text-blue-600 shadow-sm">Download</button>
+            <div className="col-span-12 xl:col-span-4">
+              <Panel title="Device Status" action={<span className="text-xs text-slate-500">{onlineDevices}/{data.devices.length} ON</span>}>
+                <div className="space-y-2">
+                  {data.devices.map((device) => (
+                    <div key={device.id} className="flex items-center justify-between rounded-lg bg-slate-50 p-3">
+                      <div>
+                        <p className="font-medium">{device.deviceName}</p>
+                        <p className="text-xs text-slate-500">Classroom {device.classroomId}</p>
                       </div>
-                      <p className="mt-2 line-clamp-3 text-xs text-slate-600">{note.content}</p>
+                      <button
+                        onClick={() => withAction(() => (device.status === "ON" ? api.turnDeviceOff(device.id) : api.turnDeviceOn(device.id)), "Device status updated.")}
+                        className={`rounded-md px-3 py-1 text-xs font-semibold ${device.status === "ON" ? "bg-green-100 text-green-700" : "bg-slate-200 text-slate-700"}`}
+                      >
+                        {device.status}
+                      </button>
                     </div>
                   ))}
-                  {data.notes.length === 0 && <p className="text-sm text-slate-500">No notes published yet.</p>}
                 </div>
-              </div>
+              </Panel>
+            </div>
+
+            <div className="col-span-12 xl:col-span-4">
+              <Panel
+                title="Notification Status"
+                action={<button onClick={() => withAction(() => api.markAllNotificationsRead(toRole(userRole)), "Notifications marked as read.")} className="text-xs font-semibold text-blue-600">Read All</button>}
+              >
+                <div className="space-y-2">
+                  {data.notifications.slice(0, 8).map((item) => (
+                    <div key={item.id} className="block w-full rounded-lg bg-slate-50 p-3 text-left">
+                      <div className="flex justify-between gap-2 items-start">
+                        <div>
+                          <p className="font-medium">{item.title}</p>
+                          <p className="mt-1 text-xs text-slate-500">{item.message}</p>
+                        </div>
+                        <div className="space-y-1 text-right">
+                          <button onClick={() => { withAction(() => api.markNotificationRead(item.id), "Notification marked as read."); }} className="text-xs text-slate-500">Mark read</button>
+                          {item.sentBy && (
+                            <button onClick={() => { setActiveSection('messages'); loadConversation(item.sentBy.id); withAction(() => api.markNotificationRead(item.id), "Notification marked as read."); }} className="text-xs text-blue-600">Open chat</button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Panel>
+            </div>
+
+            <div className="col-span-12 xl:col-span-4">
+              <Panel title="Chat">
+                <form onSubmit={sendMessage} className="space-y-3">
+                  <SelectField label="Chat With" value={selectedChatUserId} onChange={(e) => loadConversation(e.target.value)}>
+                    <option value="">Select user</option>
+                    {chatTargets.map((item) => <option key={item.id} value={item.id}>{item.name} ({normalizeUserRole(item.role)})</option>)}
+                  </SelectField>
+                  <div className="max-h-40 space-y-2 overflow-auto rounded-lg bg-slate-50 p-3">
+                    {conversation.map((item) => (
+                      <p key={item.id} className={`rounded-md px-3 py-2 text-xs ${item.sender?.id === userId ? "bg-blue-600 text-white" : "bg-white text-slate-700"}`}>
+                        {item.message}
+                      </p>
+                    ))}
+                    {conversation.length === 0 && <p className="text-xs text-slate-500">No messages selected.</p>}
+                  </div>
+                  <textarea required value={message} onChange={(e) => setMessage(e.target.value)} className="min-h-20 w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="Type a message" />
+                  <button className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Send Message</button>
+                </form>
+              </Panel>
+            </div>
+          </div>
+        ) : activeSection === "messages" ? (
+          <div className="mt-4">
+            <Panel title="Chat">
+              <form onSubmit={sendMessage} className="space-y-3">
+                <SelectField label="Chat With" value={selectedChatUserId} onChange={(e) => loadConversation(e.target.value)}>
+                  <option value="">Select user</option>
+                  {chatTargets.map((item) => <option key={item.id} value={item.id}>{item.name} ({normalizeUserRole(item.role)})</option>)}
+                </SelectField>
+                <div className="max-h-64 space-y-2 overflow-auto rounded-lg bg-slate-50 p-3">
+                  {conversation.map((item) => (
+                    <p key={item.id} className={`rounded-md px-3 py-2 text-xs ${item.sender?.id === userId ? "bg-blue-600 text-white" : "bg-white text-slate-700"}`}>
+                      {item.message}
+                    </p>
+                  ))}
+                  {conversation.length === 0 && <p className="text-xs text-slate-500">No messages selected.</p>}
+                </div>
+                <textarea required value={message} onChange={(e) => setMessage(e.target.value)} className="min-h-20 w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="Type a message" />
+                <button className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Send Message</button>
+              </form>
             </Panel>
           </div>
-
-          <div className="col-span-12 xl:col-span-4">
+        ) : activeSection === "classes" ? (
+          <div className="mt-4 grid grid-cols-1 gap-4">
+            <Panel title="Upcoming Classes">
+              <UpcomingClasses classes={upcomingClasses} isLoading={isLoading} />
+            </Panel>
+            <Panel title="Ongoing Classes">
+              <OngoingClasses classes={visibleClasses} isLoading={isLoading} />
+            </Panel>
+          </div>
+        ) : activeSection === "attendance" ? (
+          <div className="mt-4">
+            <Panel title="Attendance Overview">
+              <AttendanceCard percentage={attendancePercent} total={data.attendance.length} />
+            </Panel>
+            <Panel title="Today's Timetable">
+              <TodayTimetable classes={todayClasses} isLoading={isLoading} />
+            </Panel>
+          </div>
+        ) : activeSection === "devices" ? (
+          <div className="mt-4">
             <Panel title="Device Status" action={<span className="text-xs text-slate-500">{onlineDevices}/{data.devices.length} ON</span>}>
               <div className="space-y-2">
                 {data.devices.map((device) => (
@@ -643,47 +857,26 @@ const Dashboard = ({ user, onLogout }) => {
               </div>
             </Panel>
           </div>
-
-          <div className="col-span-12 xl:col-span-4">
-            <Panel
-              title="Notification Status"
-              action={<button onClick={() => withAction(() => api.markAllNotificationsRead(toRole(userRole)), "Notifications marked as read.")} className="text-xs font-semibold text-blue-600">Read All</button>}
-            >
-              <div className="space-y-2">
-                {data.notifications.slice(0, 5).map((item) => (
-                  <button key={item.id} onClick={() => withAction(() => api.markNotificationRead(item.id), "Notification marked as read.")} className="block w-full rounded-lg bg-slate-50 p-3 text-left">
-                    <div className="flex justify-between gap-2">
-                      <p className="font-medium">{item.title}</p>
-                      <span className={`text-xs ${item.isRead ? "text-slate-400" : "text-blue-600"}`}>{item.isRead ? "Read" : "Unread"}</span>
-                    </div>
-                    <p className="mt-1 text-xs text-slate-500">{item.message}</p>
-                  </button>
-                ))}
+        ) : activeSection === "admin" ? (
+          <div className="mt-4">
+            <Panel title="Admin Portal">
+              <div className="space-y-3">
+                <p className="text-sm text-slate-600">Admin quick links:</p>
+                <ul className="list-disc pl-5 text-sm text-slate-700">
+                  <li><a className="text-blue-600" href="#" onClick={(e)=>{e.preventDefault(); setActiveSection('dashboard');}}>Manage Users</a> — view and edit users via the API.</li>
+                  <li><a className="text-blue-600" href="#" onClick={(e)=>{e.preventDefault(); setActiveSection('classes');}}>Manage Timetables</a> — create or fix class schedules.</li>
+                  <li><a className="text-blue-600" href="#" onClick={(e)=>{e.preventDefault(); setActiveSection('devices');}}>Manage Devices</a> — monitor and control classroom devices.</li>
+                </ul>
               </div>
             </Panel>
           </div>
-
-          <div className="col-span-12 xl:col-span-4">
-            <Panel title="Chat">
-              <form onSubmit={sendMessage} className="space-y-3">
-                <SelectField label="Chat With" value={selectedChatUserId} onChange={(e) => loadConversation(e.target.value)}>
-                  <option value="">Select user</option>
-                  {chatTargets.map((item) => <option key={item.id} value={item.id}>{item.name} ({normalizeUserRole(item.role)})</option>)}
-                </SelectField>
-                <div className="max-h-40 space-y-2 overflow-auto rounded-lg bg-slate-50 p-3">
-                  {conversation.map((item) => (
-                    <p key={item.id} className={`rounded-md px-3 py-2 text-xs ${item.sender?.id === userId ? "bg-blue-600 text-white" : "bg-white text-slate-700"}`}>
-                      {item.message}
-                    </p>
-                  ))}
-                  {conversation.length === 0 && <p className="text-xs text-slate-500">No messages selected.</p>}
-                </div>
-                <textarea required value={message} onChange={(e) => setMessage(e.target.value)} className="min-h-20 w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500" placeholder="Type a message" />
-                <button className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Send Message</button>
-              </form>
+        ) : (
+          <div className="mt-4">
+            <Panel title="Section">
+              <p className="text-sm text-slate-600">This section is under construction.</p>
             </Panel>
           </div>
-        </div>
+        )}
       </main>
     </div>
   );

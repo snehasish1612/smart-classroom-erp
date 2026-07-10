@@ -1,30 +1,38 @@
-const Sidebar = () => {
-  const menu = [
-    "Attendance",
-    "Routine",
-    "Classes",
-    "Assignments",
-    "Faculty",
-    "Students",
-    "Settings",
+const Sidebar = ({ user, active, onSelect }) => {
+  const baseMenu = [
+    { key: "dashboard", label: "Dashboard" },
+    { key: "classes", label: "Classes" },
+    { key: "attendance", label: "Attendance" },
+    { key: "messages", label: "Messages" },
+    { key: "devices", label: "Devices" },
+    { key: "reports", label: "Reports" },
+    { key: "settings", label: "Settings" },
   ];
 
+  if (user?.role === "ADMIN") {
+    baseMenu.push({ key: "admin", label: "Admin Portal" });
+  }
+
   return (
-    <aside className="w-64 bg-white rounded-3xl p-6 shadow flex flex-col justify-between">
+    <aside className="w-full max-w-full rounded-3xl bg-white p-6 shadow md:w-64 md:min-h-[calc(100vh-2rem)]">
       <h1 className="text-2xl font-bold mb-8">SURTECH</h1>
 
-      <nav className="space-y-4">
-        {menu.map((item) => (
+      <nav className="space-y-2">
+        {baseMenu.map((item) => (
           <button
-            key={item}
-            className="block w-full text-left hover:text-blue-600"
+            key={item.key}
+            onClick={() => onSelect && onSelect(item.key)}
+            aria-pressed={active === item.key}
+            className={`block w-full text-left text-sm font-medium px-3 py-2 rounded-lg ${
+              active === item.key ? "bg-slate-100 text-slate-900" : "text-slate-700 hover:text-blue-600"
+            }`}
           >
-            {item}
+            {item.label}
           </button>
         ))}
       </nav>
 
-      <div className="mt-auto h-24 bg-slate-200 rounded-2xl"></div>
+      <div className="mt-auto h-24 rounded-2xl bg-slate-200"></div>
     </aside>
   );
 };

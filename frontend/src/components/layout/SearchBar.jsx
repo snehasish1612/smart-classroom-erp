@@ -3,7 +3,8 @@ const SearchBar = () => {
     <input
       type="text"
       placeholder="Search..."
-      className="border rounded-xl px-4 py-2 w-72"
+      aria-label="Search dashboard"
+      className="w-full max-w-xs min-w-0 border rounded-xl px-4 py-2"
     />
   );
 };
