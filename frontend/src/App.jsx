@@ -1,8 +1,11 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import "./App.css";
 import { clearSession, getStoredSession } from "./api";
 import AuthPage from "./pages/AuthPage";
 import Dashboard from "./pages/Dashboard";
+
+
+// const [date, setDate] = React.useState<Date | undefined>(new Date())
 
 function App() {
   const [session, setSession] = useState(() => getStoredSession());

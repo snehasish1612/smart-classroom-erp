@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { api, getStoredSession } from "../api";
 import Sidebar from "../components/layout/Sidebar";
 import Header from "../components/layout/Header";
@@ -10,6 +10,7 @@ import CalendarCard from "../components/cards/CalendarCard";
 import TimeCard from "../components/cards/TimeCard";
 import OngoingClasses from "../components/classes/OngoingClasses";
 import ExtraclassesCard from "../components/cards/ExtraclassesCard";
+
 
 const days = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
 
@@ -94,13 +95,12 @@ const TodayTimetable = ({ classes = [], isLoading }) => (
               <td className="py-3 pr-3 text-slate-600">{item.faculty}</td>
               <td className="py-3 pr-3 text-slate-600">{item.room}</td>
               <td className="py-3 pr-3">
-                <span className={`rounded-full px-2 py-1 text-xs font-semibold ${
-                  item.status === "Live"
-                    ? "bg-green-100 text-green-700"
-                    : item.status === "Upcoming"
-                      ? "bg-yellow-100 text-yellow-700"
-                      : "bg-slate-200 text-slate-600"
-                }`}>
+                <span className={`rounded-full px-2 py-1 text-xs font-semibold ${item.status === "Live"
+                  ? "bg-green-100 text-green-700"
+                  : item.status === "Upcoming"
+                    ? "bg-yellow-100 text-yellow-700"
+                    : "bg-slate-200 text-slate-600"
+                  }`}>
                   {item.status}
                 </span>
               </td>
@@ -464,7 +464,7 @@ const Dashboard = ({ user, onLogout }) => {
           if (!mounted) return;
           setConversation(Array.isArray(messages) ? messages : []);
         })
-        .catch(() => {});
+        .catch(() => { });
     };
 
     fetchConv();
@@ -484,7 +484,7 @@ const Dashboard = ({ user, onLogout }) => {
           if (!mounted) return;
           setData((prev) => ({ ...prev, notifications: Array.isArray(notifs) ? notifs : [] }));
         })
-        .catch(() => {});
+        .catch(() => { });
     };
 
     fetchNotifs();
@@ -528,7 +528,7 @@ const Dashboard = ({ user, onLogout }) => {
               };
               setData((prev) => ({ ...prev, notifications: [chatNotif, ...(prev.notifications || [])] }));
             }
-          } catch (e) {}
+          } catch (e) { }
         });
 
         // subscribe to personal notifications
@@ -536,7 +536,7 @@ const Dashboard = ({ user, onLogout }) => {
           try {
             const payload = JSON.parse(msg.body);
             setData((prev) => ({ ...prev, notifications: [payload, ...(prev.notifications || [])] }));
-          } catch (e) {}
+          } catch (e) { }
         });
       } catch (e) {
         // ignore
@@ -578,7 +578,7 @@ const Dashboard = ({ user, onLogout }) => {
             </div>
 
             <div className="col-span-12 sm:col-span-6 xl:col-span-4">
-              <CalendarCard />
+             <CalendarCard/>
             </div>
 
             <div className="col-span-12 xl:col-span-8">
@@ -863,9 +863,9 @@ const Dashboard = ({ user, onLogout }) => {
               <div className="space-y-3">
                 <p className="text-sm text-slate-600">Admin quick links:</p>
                 <ul className="list-disc pl-5 text-sm text-slate-700">
-                  <li><a className="text-blue-600" href="#" onClick={(e)=>{e.preventDefault(); setActiveSection('dashboard');}}>Manage Users</a> — view and edit users via the API.</li>
-                  <li><a className="text-blue-600" href="#" onClick={(e)=>{e.preventDefault(); setActiveSection('classes');}}>Manage Timetables</a> — create or fix class schedules.</li>
-                  <li><a className="text-blue-600" href="#" onClick={(e)=>{e.preventDefault(); setActiveSection('devices');}}>Manage Devices</a> — monitor and control classroom devices.</li>
+                  <li><a className="text-blue-600" href="#" onClick={(e) => { e.preventDefault(); setActiveSection('dashboard'); }}>Manage Users</a> — view and edit users via the API.</li>
+                  <li><a className="text-blue-600" href="#" onClick={(e) => { e.preventDefault(); setActiveSection('classes'); }}>Manage Timetables</a> — create or fix class schedules.</li>
+                  <li><a className="text-blue-600" href="#" onClick={(e) => { e.preventDefault(); setActiveSection('devices'); }}>Manage Devices</a> — monitor and control classroom devices.</li>
                 </ul>
               </div>
             </Panel>
