@@ -548,7 +548,7 @@ const Dashboard = ({ user, onLogout }) => {
   }, [userId, activeSection, selectedChatUserId]);
 
   return (
-    <div className="flex flex-col md:flex-row min-h-screen bg-slate-100 p-4 gap-4">
+    <div className="flex flex-col md:flex-row min-h-screen bg-slate-100 p-4 gap-4  text-blue-600">
       <Sidebar user={user} active={activeSection} onSelect={setActiveSection} />
 
       <main className="flex-1 overflow-auto min-w-0">
@@ -569,16 +569,19 @@ const Dashboard = ({ user, onLogout }) => {
               <TimeCard />
             </div>
 
-            <div className="col-span-12 sm:col-span-6 xl:col-span-4">
-              <AttendanceCard percentage={attendancePercent} total={data.attendance.length} />
+            <div className="col-span-12 sm:col-span-6 xl:col-span-5">
+              <AttendanceCard
+                percentage={attendancePercent} total={data.attendance.length
+
+                } />
             </div>
 
-            <div className="col-span-12 sm:col-span-6 xl:col-span-4">
+            <div className="col-span-12 sm:col-span-6 xl:col-span-3 ">
               <ExtraclassesCard count={classes.length} />
             </div>
 
             <div className="col-span-12 sm:col-span-6 xl:col-span-4">
-             <CalendarCard/>
+              <CalendarCard />
             </div>
 
             <div className="col-span-12 xl:col-span-8">
@@ -593,7 +596,7 @@ const Dashboard = ({ user, onLogout }) => {
 
             <div className="col-span-12 xl:col-span-4">
               <Panel title="Location Attendance">
-                <div className="space-y-3">
+                <div className="space-y-3 flex flex-col justify-between">
                   <SelectField
                     label="Class"
                     value={selectedClass?.id || ""}
@@ -643,7 +646,7 @@ const Dashboard = ({ user, onLogout }) => {
             {userRole !== "STUDENT" && (
               <div className="col-span-12 xl:col-span-6">
                 <Panel title="Routine Updation">
-                  <form onSubmit={saveRoutine} className="grid gap-3 md:grid-cols-2">
+                  <form onSubmit={saveRoutine} className="grid gap-3 md:grid-cols-2 pt-3">
                     <Field label="Subject" required value={routineForm.subject} onChange={(e) => setRoutineForm({ ...routineForm, subject: e.target.value })} />
                     <Field label="Classroom" required value={routineForm.classroom} onChange={(e) => setRoutineForm({ ...routineForm, classroom: e.target.value })} />
                     <SelectField label="Faculty" value={routineForm.facultyId} onChange={(e) => setRoutineForm({ ...routineForm, facultyId: e.target.value })}>
@@ -660,7 +663,7 @@ const Dashboard = ({ user, onLogout }) => {
                     <Field label="Semester" type="number" min="1" value={routineForm.semester} onChange={(e) => setRoutineForm({ ...routineForm, semester: e.target.value })} />
                     <Field label="Start Time" type="time" value={routineForm.startTime} onChange={(e) => setRoutineForm({ ...routineForm, startTime: e.target.value })} />
                     <Field label="End Time" type="time" value={routineForm.endTime} onChange={(e) => setRoutineForm({ ...routineForm, endTime: e.target.value })} />
-                    <button className="md:col-span-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Save Routine</button>
+                    <button className="md:col-span-2 rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 mt-12">Save Routine</button>
                   </form>
                 </Panel>
               </div>
@@ -668,7 +671,8 @@ const Dashboard = ({ user, onLogout }) => {
 
             <div className="col-span-12 xl:col-span-6">
               <Panel title="Assignments">
-                <div className="grid gap-4 lg:grid-cols-2">
+                <div className="grid gap-4 lg:grid-cols-1">
+
                   {userRole !== "STUDENT" && (
                     <form onSubmit={createAssignment} className="space-y-3">
                       <Field label="Title" required value={assignmentForm.title} onChange={(e) => setAssignmentForm({ ...assignmentForm, title: e.target.value })} />
@@ -679,38 +683,41 @@ const Dashboard = ({ user, onLogout }) => {
                         {data.sections.map((item) => <option key={item.id} value={item.id}>{item.name || item.sectionName || `Section ${item.id}`}</option>)}
                       </SelectField>
                       <Field label="Description" value={assignmentForm.description} onChange={(e) => setAssignmentForm({ ...assignmentForm, description: e.target.value })} />
-                      <button className="w-full rounded-md bg-slate-900 px-4 py-2 text-sm font-semibold text-white">Create Assignment</button>
+                      <button className="w-full rounded-md bg-blue-600 px-4 py-2 mt-2 text-sm font-semibold hover:bg-blue-800 text-white">Create Assignment</button>
                     </form>
                   )}
-                  <form onSubmit={submitAssignment} className="space-y-3">
-                    <SelectField label="Assignment" value={selectedAssignmentId} onChange={(e) => setSelectedAssignmentId(e.target.value)}>
-                      {data.assignments.map((item) => <option key={item.id} value={item.id}>{item.title} - {item.subject}</option>)}
-                    </SelectField>
-                    <textarea
-                      required
-                      value={submissionText}
-                      onChange={(e) => setSubmissionText(e.target.value)}
-                      className="min-h-28 w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
-                      placeholder="Write submission notes or paste a document link"
-                    />
-                    <button className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Submit Assignment</button>
-                  </form>
+                  {userRole !== "FACULTY" && (
+                    <form onSubmit={submitAssignment} className="space-y-3">
+                      <SelectField label="Assignment" value={selectedAssignmentId} onChange={(e) => setSelectedAssignmentId(e.target.value)}>
+                        {data.assignments.map((item) => <option key={item.id} value={item.id}>{item.title} - {item.subject}</option>)}
+                      </SelectField>
+                      <textarea
+                        required
+                        value={submissionText}
+                        onChange={(e) => setSubmissionText(e.target.value)}
+                        className="min-h-28 w-full rounded-md border border-slate-200 px-3 py-2 text-sm outline-none focus:border-blue-500"
+                        placeholder="Write submission notes or paste a document link"
+                      />
+                      <button className="w-full rounded-md bg-indigo-600 px-4 py-2 text-sm font-semibold text-white hover:bg-indigo-700">Submit Assignment</button>
+                    </form>
+                  )}
+
                 </div>
               </Panel>
             </div>
 
-            <div className="col-span-12 xl:col-span-6">
+            <div className="col-span-12 xl:col-span-7">
               <Panel title="AI Notes">
-                <div className="grid gap-4 lg:grid-cols-2">
+                <div className="grid gap-4 overflow-auto h-70 lg:grid-cols-2">
                   {userRole !== "STUDENT" && (
-                    <form onSubmit={generateNote} className="space-y-3">
+                    <form onSubmit={generateNote} className="space-y-3 flex flex-col gap-2">
                       <Field label="Subject" required value={noteForm.subject} onChange={(e) => setNoteForm({ ...noteForm, subject: e.target.value })} />
                       <Field label="Topic" required value={noteForm.topic} onChange={(e) => setNoteForm({ ...noteForm, topic: e.target.value })} />
-                      <button className="w-full rounded-md bg-violet-600 px-4 py-2 text-sm font-semibold text-white hover:bg-violet-700">Generate And Publish Notes</button>
+                      <button className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-800">Generate And Publish Notes</button>
                     </form>
                   )}
 
-                  <div className="max-h-64 space-y-2 overflow-auto">
+                  <div className="w-full flex flex-wrap justify-between align-center gap-2 max-h-18">
                     {data.notes.map((note) => (
                       <div key={note.id} className="rounded-lg bg-slate-50 p-3">
                         <div className="flex items-start justify-between gap-3">
@@ -729,7 +736,7 @@ const Dashboard = ({ user, onLogout }) => {
               </Panel>
             </div>
 
-            <div className="col-span-12 xl:col-span-4">
+            <div className="col-span-12 xl:col-span-5">
               <Panel title="Device Status" action={<span className="text-xs text-slate-500">{onlineDevices}/{data.devices.length} ON</span>}>
                 <div className="space-y-2">
                   {data.devices.map((device) => (
@@ -776,7 +783,7 @@ const Dashboard = ({ user, onLogout }) => {
               </Panel>
             </div>
 
-            <div className="col-span-12 xl:col-span-4">
+            <div className="col-span-12 xl:col-span-8">
               <Panel title="Chat">
                 <form onSubmit={sendMessage} className="space-y-3">
                   <SelectField label="Chat With" value={selectedChatUserId} onChange={(e) => loadConversation(e.target.value)}>

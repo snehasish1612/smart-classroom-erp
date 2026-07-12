@@ -25,19 +25,38 @@
 
 import { useState } from "react";
 import { Calendar } from "@/components/ui/calendar";
+import Card from "./Card";
 
 export default function CalendarPage() {
   const [date, setDate] = useState(new Date());
 
   return (
-    <div className="flex justify-center items-center w-full ">
-      <Calendar
-        mode="range"
-        selected={date}
-        onSelect={setDate}
-        numberOfMonths={2}
-        className="rounded-md border shadow"
-      />
-    </div>
+    <Card className="overflow-auto p-2">
+      <div className="flex justify-center py-7  ">
+        {/* Mobile */}
+        <div className="block md:hidden">
+          <Calendar
+            mode="single"
+            selected={date}
+            onSelect={setDate}
+            numberOfMonths={1}
+            className="rounded-md border shadow"
+          />
+        </div>
+
+        {/* Desktop */}
+        <div className="hidden md:block">
+          <Calendar
+            mode="single"
+            selected={date}
+            onSelect={setDate}
+            numberOfMonths={2}
+            className="rounded-md border shadow"
+          />
+        </div>
+      </div>
+    </Card>
   );
 }
+
+

@@ -28,20 +28,20 @@ const Header = ({ user, onLogout }) => {
   return (
     <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
       <div>
-        <h1 className="text-3xl font-bold">
-          {user?.name || "Smart Classroom"}
+        <h1 className="text-3xl font-sans font-bold text-zinc-800 pt-2">
+          {user?.name?.toUpperCase() || "Smart Classroom"}
         </h1>
-        <p className="text-sm text-slate-500">{user?.role}</p>
+        <p className="text-sm text-blue-600 pl-1">{user?.role?.toLowerCase()}</p>
       </div>
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-        <button onClick={markAttendance} className="w-full rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
-          Make sure your Attandance
+        <button onClick={markAttendance} className="w-full rounded-md bg-green-600 px-4 py-2 text-sm font-semibold text-white hover:bg-green-700">
+          Mark Attendance via GPS
         </button>
         <SearchBar />
         <button
           onClick={onLogout}
-          className="rounded-xl border px-4 py-2 text-sm font-medium text-white bg-blue-400 hover:bg-blue-600"
+          className="rounded-xl border-red px-4 py-2 text-sm font-medium text-white bg-orange-600 hover:bg-orange-700"
         >
           Logout
         </button>

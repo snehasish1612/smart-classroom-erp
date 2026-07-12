@@ -11,7 +11,7 @@ const TimeCard = () => {
 
   return (
     <Card title="Current Time">
-      <div className="text-4xl font-bold">
+      <div className="text-4xl font-bold py-4">
         {now.toLocaleTimeString([], {
           hour: "numeric",
           minute: "2-digit",

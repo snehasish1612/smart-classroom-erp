@@ -4,7 +4,7 @@ const OngoingClasses = ({ classes = [], isLoading }) => {
   return (
     <div className="bg-white rounded-3xl p-4 shadow">
       <div className="flex justify-between mb-4">
-        <h2 className="font-semibold">
+        <h2 className="font-semibold text-zinc-800">
           Ongoing Classes
         </h2>
 

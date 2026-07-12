@@ -98,6 +98,12 @@ const AuthPage = ({ onAuthenticated }) => {
           });
         }
       }
+      if (isRegistering && form.role === "AUTHORITY") {
+        await api.createAuthrity({
+          name: form.name,
+          email: form.email,
+        });
+      }
 
       onAuthenticated(session);
     } catch (authError) {
@@ -292,6 +298,37 @@ const AuthPage = ({ onAuthenticated }) => {
                   />
                 </label>
               </>
+            )}
+            {form.role === "FACULTY" && (
+              <div className="min-h-screen p-8 bg-slate-100">
+                <h1 className="text-3xl font-bold">
+                  Admin Dashboard
+                </h1>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mt-8">
+
+                  <div className="bg-white p-6 rounded-xl shadow">
+                    <h2 className="text-gray-500">Students</h2>
+                    <p className="text-3xl font-bold">250</p>
+                  </div>
+
+                  <div className="bg-white p-6 rounded-xl shadow">
+                    <h2 className="text-gray-500">Faculty</h2>
+                    <p className="text-3xl font-bold">32</p>
+                  </div>
+
+                  <div className="bg-white p-6 rounded-xl shadow">
+                    <h2 className="text-gray-500">Classes</h2>
+                    <p className="text-3xl font-bold">18</p>
+                  </div>
+
+                  <div className="bg-white p-6 rounded-xl shadow">
+                    <h2 className="text-gray-500">Attendance Today</h2>
+                    <p className="text-3xl font-bold">91%</p>
+                  </div>
+
+                </div>
+              </div>
             )}
           </>
         )}

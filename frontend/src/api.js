@@ -107,6 +107,12 @@ export const api = {
       body: JSON.stringify(faculty),
     });
   },
+  createAuthority(authority) {
+  return request("/api/authority", {
+    method: "POST",
+    body: JSON.stringify(authority),
+  });
+},
   getTimetable() {
     return request("/api/timetable");
   },

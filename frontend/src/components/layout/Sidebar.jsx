@@ -17,14 +17,14 @@ const Sidebar = ({ user, active, onSelect }) => {
     <aside className="w-full max-w-full rounded-3xl bg-white p-6 shadow md:w-64 md:min-h-[calc(100vh-2rem)]">
 
 
-      <nav className="space-y-2">
-        <div className="logo flex item-center my-10">
+      <nav className="space-y-2  ">
+        <div className="logo w-full flex flex-col item-centre mb-10 ">
           <img
             src={logo}
             alt="SURTECH Logo"
-            className="w-16 h-16 object-contain"
+            className="w-26 h-26 object-contain"
           />
-          <h1 className="text-2xl font-bold mt-4">SURTECH</h1>
+          {/* <h1 className=" text-2xl font-semibold text-zinc-800">SURTECH</h1> */}
         </div>
 
         {baseMenu.map((item) => (
@@ -44,11 +44,14 @@ const Sidebar = ({ user, active, onSelect }) => {
         <h2 className="text-lg text-blue-600">Admission Open for
           2026 Session</h2>
         <p className="text-xs">Limited seats available. Book your seat now.</p>
-        <button
-          className="rounded-xl border px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-800"
+        <a
+          href="https://www.surtech.edu.in/"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800"
         >
           Contact
-        </button>
+        </a>
       </div>
     </aside>
   );
