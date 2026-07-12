@@ -128,6 +128,11 @@ export const api = {
       body: JSON.stringify(payload),
     });
   },
+  deleteTimetable(id) {
+    return request(`/api/timetable/${id}`, {
+      method: "DELETE",
+    });
+  },
   getAttendance() {
     return request("/api/attendance");
   },
@@ -139,6 +144,23 @@ export const api = {
   },
   getUsers() {
     return request("/api/users");
+  },
+  createUser(user) {
+    return request("/api/users", {
+      method: "POST",
+      body: JSON.stringify(user),
+    });
+  },
+  updateUser(id, user) {
+    return request(`/api/users/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(user),
+    });
+  },
+  deleteUser(id) {
+    return request(`/api/users/${id}`, {
+      method: "DELETE",
+    });
   },
   getStudents() {
     return request("/api/students");

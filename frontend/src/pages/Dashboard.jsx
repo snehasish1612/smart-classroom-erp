@@ -182,6 +182,26 @@ const Dashboard = ({ user, onLogout }) => {
     subject: "",
     topic: "",
   });
+  const [adminTab, setAdminTab] = useState("users");
+  const [adminUserForm, setAdminUserForm] = useState({
+    id: null,
+    name: "",
+    email: "",
+    role: "STUDENT",
+    password: "",
+  });
+  const [editingUserId, setEditingUserId] = useState(null);
+  const [adminTimetableForm, setAdminTimetableForm] = useState({
+    streamId: "",
+    subject: "",
+    facultyId: "",
+    classroom: "",
+    day: todayDay(),
+    startTime: "09:00",
+    endTime: "10:00",
+    semester: 1,
+  });
+  const [editingTimetableId, setEditingTimetableId] = useState(null);
 
   const loadDashboard = useCallback(() => {
     setIsLoading(true);
@@ -358,6 +378,134 @@ const Dashboard = ({ user, onLogout }) => {
         }),
       "Routine updated successfully.",
     );
+  };
+
+  const resetAdminUserForm = () => {
+    setEditingUserId(null);
+    setAdminUserForm({ id: null, name: "", email: "", role: "STUDENT", password: "" });
+  };
+
+  const saveAdminUser = async (event) => {
+    event.preventDefault();
+    setError("");
+    setNotice("");
+
+    if (!adminUserForm.name || !adminUserForm.email) {
+      setError("Name and email are required.");
+      return;
+    }
+
+    if (!editingUserId && !adminUserForm.password) {
+      setError("Password is required for new users.");
+      return;
+    }
+
+    const payload = {
+      name: adminUserForm.name,
+      email: adminUserForm.email,
+      role: adminUserForm.role,
+      password: adminUserForm.password || undefined,
+    };
+
+    await withAction(
+      () =>
+        editingUserId
+          ? api.updateUser(editingUserId, payload)
+          : api.createUser(payload),
+      editingUserId ? "User updated successfully." : "User created successfully.",
+    );
+
+    resetAdminUserForm();
+  };
+
+  const editAdminUser = (user) => {
+    setAdminTab("users");
+    setEditingUserId(user.id);
+    setAdminUserForm({
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      password: "",
+    });
+  };
+
+  const removeAdminUser = (userId) => {
+    withAction(() => api.deleteUser(userId), "User deleted successfully.");
+  };
+
+  const editAdminTimetable = (item) => {
+    setAdminTab("timetables");
+    setEditingTimetableId(item.id);
+    setAdminTimetableForm({
+      streamId: item.stream?.id || "",
+      subject: item.subject || "",
+      facultyId: item.faculty?.id || "",
+      classroom: item.classroom || item.room || "",
+      day: item.day || todayDay(),
+      startTime: item.startTime || item.startTimeRaw || "09:00",
+      endTime: item.endTime || item.endTimeRaw || "10:00",
+      semester: item.semester || 1,
+    });
+  };
+
+  const saveAdminTimetable = async (event) => {
+    event.preventDefault();
+    setError("");
+    setNotice("");
+
+    const faculty = data.faculty.find((item) => String(item.id) === String(adminTimetableForm.facultyId));
+    const streamId = adminTimetableForm.streamId || data.streams[0]?.id;
+
+    if (!faculty?.id) {
+      setError("Please select a faculty for the timetable entry.");
+      return;
+    }
+
+    if (!streamId) {
+      setError("Please select a stream for the timetable entry.");
+      return;
+    }
+
+    await withAction(
+      () =>
+        editingTimetableId
+          ? api.updateTimetable(editingTimetableId, {
+              subject: adminTimetableForm.subject,
+              faculty,
+              classroom: adminTimetableForm.classroom,
+              day: adminTimetableForm.day,
+              startTime: adminTimetableForm.startTime,
+              endTime: adminTimetableForm.endTime,
+              semester: Number(adminTimetableForm.semester),
+            })
+          : api.createTimetable(streamId, {
+              subject: adminTimetableForm.subject,
+              faculty,
+              classroom: adminTimetableForm.classroom,
+              day: adminTimetableForm.day,
+              startTime: adminTimetableForm.startTime,
+              endTime: adminTimetableForm.endTime,
+              semester: Number(adminTimetableForm.semester),
+            }),
+      editingTimetableId ? "Timetable updated successfully." : "Timetable created successfully.",
+    );
+
+    setEditingTimetableId(null);
+    setAdminTimetableForm({
+      streamId: "",
+      subject: "",
+      facultyId: "",
+      classroom: "",
+      day: todayDay(),
+      startTime: "09:00",
+      endTime: "10:00",
+      semester: 1,
+    });
+  };
+
+  const deleteAdminTimetable = (id) => {
+    withAction(() => api.deleteTimetable(id), "Timetable deleted successfully.");
   };
 
   const createAssignment = (event) => {
@@ -865,17 +1013,137 @@ const Dashboard = ({ user, onLogout }) => {
             </Panel>
           </div>
         ) : activeSection === "admin" ? (
-          <div className="mt-4">
-            <Panel title="Admin Portal">
-              <div className="space-y-3">
-                <p className="text-sm text-slate-600">Admin quick links:</p>
-                <ul className="list-disc pl-5 text-sm text-slate-700">
-                  <li><a className="text-blue-600" href="#" onClick={(e) => { e.preventDefault(); setActiveSection('dashboard'); }}>Manage Users</a> — view and edit users via the API.</li>
-                  <li><a className="text-blue-600" href="#" onClick={(e) => { e.preventDefault(); setActiveSection('classes'); }}>Manage Timetables</a> — create or fix class schedules.</li>
-                  <li><a className="text-blue-600" href="#" onClick={(e) => { e.preventDefault(); setActiveSection('devices'); }}>Manage Devices</a> — monitor and control classroom devices.</li>
-                </ul>
-              </div>
-            </Panel>
+          <div className="mt-4 grid grid-cols-12 gap-4">
+            <div className="col-span-12 xl:col-span-4">
+              <Panel title="Admin Portal">
+                <div className="space-y-3">
+                  <p className="text-sm text-slate-600">Admin actions:</p>
+                  <div className="flex flex-col gap-2">
+                    <button onClick={() => setAdminTab('users')} className={`rounded-md px-3 py-2 text-left text-sm font-semibold ${adminTab === 'users' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'}`}>
+                      Manage Users
+                    </button>
+                    <button onClick={() => setAdminTab('timetables')} className={`rounded-md px-3 py-2 text-left text-sm font-semibold ${adminTab === 'timetables' ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-700'}`}>
+                      Manage Timetables
+                    </button>
+                  </div>
+                </div>
+              </Panel>
+            </div>
+
+            <div className="col-span-12 xl:col-span-8">
+              {adminTab === 'users' ? (
+                <Panel title="Users">
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <form onSubmit={saveAdminUser} className="space-y-3 rounded-lg bg-slate-50 p-4">
+                      <h3 className="text-sm font-semibold">{editingUserId ? 'Edit User' : 'Create User'}</h3>
+                      <Field label="Name" required value={adminUserForm.name} onChange={(e) => setAdminUserForm({ ...adminUserForm, name: e.target.value })} />
+                      <Field label="Email" required type="email" value={adminUserForm.email} onChange={(e) => setAdminUserForm({ ...adminUserForm, email: e.target.value })} />
+                      <SelectField label="Role" value={adminUserForm.role} onChange={(e) => setAdminUserForm({ ...adminUserForm, role: e.target.value })}>
+                        <option value="ADMIN">Admin</option>
+                        <option value="FACULTY">Faculty</option>
+                        <option value="STUDENT">Student</option>
+                      </SelectField>
+                      <Field label="Password" type="password" value={adminUserForm.password} onChange={(e) => setAdminUserForm({ ...adminUserForm, password: e.target.value })} />
+                      <div className="flex gap-2">
+                        <button type="submit" className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                          {editingUserId ? 'Update User' : 'Create User'}
+                        </button>
+                        <button type="button" onClick={resetAdminUserForm} className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+                          Reset
+                        </button>
+                      </div>
+                    </form>
+
+                    <div className="overflow-auto rounded-lg bg-slate-50 p-4">
+                      <h3 className="text-sm font-semibold mb-3">User List</h3>
+                      <table className="w-full text-left text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
+                            <th className="py-2 pr-2">Name</th>
+                            <th className="py-2 pr-2">Email</th>
+                            <th className="py-2 pr-2">Role</th>
+                            <th className="py-2">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {data.users.map((userItem) => (
+                            <tr key={userItem.id} className="border-b border-slate-200 last:border-0">
+                              <td className="py-2 pr-2">{userItem.name}</td>
+                              <td className="py-2 pr-2">{userItem.email}</td>
+                              <td className="py-2 pr-2">{userItem.role}</td>
+                              <td className="py-2 space-x-1">
+                                <button type="button" onClick={() => editAdminUser(userItem)} className="rounded-md bg-yellow-100 px-2 py-1 text-xs font-semibold text-yellow-700 hover:bg-yellow-200">Edit</button>
+                                <button type="button" onClick={() => removeAdminUser(userItem.id)} className="rounded-md bg-red-100 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-200">Delete</button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </Panel>
+              ) : (
+                <Panel title="Timetables">
+                  <div className="grid gap-4 lg:grid-cols-2">
+                    <form onSubmit={saveAdminTimetable} className="space-y-3 rounded-lg bg-slate-50 p-4">
+                      <h3 className="text-sm font-semibold">{editingTimetableId ? 'Edit Timetable' : 'Create Timetable'}</h3>
+                      <SelectField label="Stream" value={adminTimetableForm.streamId} onChange={(e) => setAdminTimetableForm({ ...adminTimetableForm, streamId: e.target.value })}>
+                        <option value="">Select stream</option>
+                        {data.streams.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                      </SelectField>
+                      <SelectField label="Faculty" value={adminTimetableForm.facultyId} onChange={(e) => setAdminTimetableForm({ ...adminTimetableForm, facultyId: e.target.value })}>
+                        <option value="">Select faculty</option>
+                        {data.faculty.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+                      </SelectField>
+                      <Field label="Subject" required value={adminTimetableForm.subject} onChange={(e) => setAdminTimetableForm({ ...adminTimetableForm, subject: e.target.value })} />
+                      <Field label="Classroom" required value={adminTimetableForm.classroom} onChange={(e) => setAdminTimetableForm({ ...adminTimetableForm, classroom: e.target.value })} />
+                      <SelectField label="Day" value={adminTimetableForm.day} onChange={(e) => setAdminTimetableForm({ ...adminTimetableForm, day: e.target.value })}>
+                        {days.map((item) => <option key={item}>{item}</option>)}
+                      </SelectField>
+                      <Field label="Start Time" type="time" value={adminTimetableForm.startTime} onChange={(e) => setAdminTimetableForm({ ...adminTimetableForm, startTime: e.target.value })} />
+                      <Field label="End Time" type="time" value={adminTimetableForm.endTime} onChange={(e) => setAdminTimetableForm({ ...adminTimetableForm, endTime: e.target.value })} />
+                      <Field label="Semester" type="number" min="1" value={adminTimetableForm.semester} onChange={(e) => setAdminTimetableForm({ ...adminTimetableForm, semester: e.target.value })} />
+                      <div className="flex gap-2">
+                        <button type="submit" className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+                          {editingTimetableId ? 'Update Timetable' : 'Create Timetable'}
+                        </button>
+                        <button type="button" onClick={() => { setEditingTimetableId(null); setAdminTimetableForm({ streamId: "", subject: "", facultyId: "", classroom: "", day: todayDay(), startTime: "09:00", endTime: "10:00", semester: 1 }); }} className="rounded-md border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100">
+                          Reset
+                        </button>
+                      </div>
+                    </form>
+                    <div className="overflow-auto rounded-lg bg-slate-50 p-4">
+                      <h3 className="text-sm font-semibold mb-3">Timetable Entries</h3>
+                      <table className="w-full text-left text-sm">
+                        <thead>
+                          <tr className="border-b border-slate-200 text-xs uppercase text-slate-500">
+                            <th className="py-2 pr-2">Subject</th>
+                            <th className="py-2 pr-2">Faculty</th>
+                            <th className="py-2 pr-2">Day</th>
+                            <th className="py-2 pr-2">Time</th>
+                            <th className="py-2">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {data.timetable.map((item) => (
+                            <tr key={item.id} className="border-b border-slate-200 last:border-0">
+                              <td className="py-2 pr-2">{item.subject}</td>
+                              <td className="py-2 pr-2">{item.faculty?.name || 'N/A'}</td>
+                              <td className="py-2 pr-2">{item.day}</td>
+                              <td className="py-2 pr-2">{item.startTime} - {item.endTime}</td>
+                              <td className="py-2 space-x-1">
+                                <button type="button" onClick={() => editAdminTimetable(item)} className="rounded-md bg-yellow-100 px-2 py-1 text-xs font-semibold text-yellow-700 hover:bg-yellow-200">Edit</button>
+                                <button type="button" onClick={() => deleteAdminTimetable(item.id)} className="rounded-md bg-red-100 px-2 py-1 text-xs font-semibold text-red-700 hover:bg-red-200">Delete</button>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </Panel>
+              )}
+            </div>
           </div>
         ) : (
           <div className="mt-4">
